@@ -607,6 +607,11 @@ spec:
             "type": "string",
             "default": ""
           },
+          "computePlane": {
+            "description": "Deploy the workload onto the tenant's ComputePlane (requires the computeplane tenant module, cozystack \u003e= the release shipping it). When false, the app runs co-located in the tenant namespace on the management cluster.",
+            "type": "boolean",
+            "default": false
+          },
           "database": {
             "description": "PostgreSQL configuration.",
             "type": "object",
@@ -655,12 +660,20 @@ spec:
             }
           },
           "resources": {
-            "description": "CPU and memory for the Langflow backend container (each value sets both request and limit). Leave a field empty for the upstream chart default.",
+            "description": "Container resources.",
             "type": "object",
             "default": {},
             "properties": {
-              "cpu": {"type": "string", "title": "CPU", "default": "", "description": "CPU request and limit (e.g. 500m, 2)."},
-              "memory": {"type": "string", "title": "Memory", "default": "", "description": "Memory request and limit (e.g. 512Mi, 2Gi)."}
+              "cpu": {
+                "description": "CPU request and limit (e.g. 500m, 2).",
+                "type": "string",
+                "default": ""
+              },
+              "memory": {
+                "description": "Memory request and limit (e.g. 512Mi, 2Gi).",
+                "type": "string",
+                "default": ""
+              }
             }
           },
           "replicaCount": {
@@ -705,3 +718,5 @@ spec:
         - resources
       - - spec
         - replicaCount
+      - - spec
+        - computePlane
