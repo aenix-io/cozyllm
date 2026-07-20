@@ -1,4 +1,3 @@
-{{- if not .Values.computePlane }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -14,4 +13,3 @@ spec:
   {{- with .Values.storageClass }}
   storageClassName: {{ . | quote }}
   {{- end }}
-{{- end }}

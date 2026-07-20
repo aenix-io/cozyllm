@@ -63,3 +63,16 @@ spec:
   sourceRef:
     kind: GitRepository
     name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-comfyui-workload
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/system/comfyui-workload
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm

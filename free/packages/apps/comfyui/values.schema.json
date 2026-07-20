@@ -12,6 +12,11 @@
       "type": "string",
       "default": ""
     },
+    "computePlane": {
+      "description": "Deploy the workload onto the tenant's ComputePlane (requires the computeplane tenant module, cozystack \u003e= the release shipping it). When false, the app runs co-located in the tenant namespace on the management cluster.",
+      "type": "boolean",
+      "default": false
+    },
     "storage": {
       "description": "Storage configuration.",
       "type": "object",

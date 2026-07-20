@@ -1,0 +1,9 @@
+replicaCount: 1
+storageClass: ""
+storage:
+  size: 50Gi
+gpuEnabled: true
+gpuCount: 1
+resources:
+  cpu: "4"
+  memory: "16Gi"
