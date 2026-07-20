@@ -26,3 +26,10 @@ metadata:
   labels:
     cozystack.io/system: "true"
   name: external-langflow
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-oauth2-proxy
