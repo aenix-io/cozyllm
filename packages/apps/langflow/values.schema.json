@@ -1,0 +1,85 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "host": {
+      "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+      "type": "string",
+      "default": ""
+    },
+    "storageClass": {
+      "description": "StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.",
+      "type": "string",
+      "default": ""
+    },
+    "database": {
+      "description": "PostgreSQL configuration.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "name",
+        "replicas",
+        "size",
+        "user"
+      ],
+      "properties": {
+        "name": {
+          "description": "Database name Langflow stores its flows, users, and API keys in.",
+          "type": "string",
+          "default": "langflow"
+        },
+        "password": {
+          "description": "Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.",
+          "type": "string",
+          "default": ""
+        },
+        "replicas": {
+          "description": "Number of database instances.",
+          "type": "integer",
+          "default": 2
+        },
+        "size": {
+          "description": "Persistent Volume size for database storage.",
+          "default": "5Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        },
+        "user": {
+          "description": "Database user Langflow connects as.",
+          "type": "string",
+          "default": "langflow"
+        }
+      }
+    },
+    "resources": {
+      "description": "CPU and memory for the Langflow backend container (each value sets both request and limit). Leave a field empty for the upstream chart default.",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "cpu": {
+          "description": "CPU request and limit (e.g. 500m, 2).",
+          "type": "string",
+          "default": ""
+        },
+        "memory": {
+          "description": "Memory request and limit (e.g. 512Mi, 2Gi).",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "replicaCount": {
+      "description": "Number of Langflow backend pods. Usually 1.",
+      "type": "integer",
+      "default": 1
+    }
+  }
+}

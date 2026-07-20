@@ -1,0 +1,160 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["model", "gpuCount", "quantization", "maxContextLength"],
+  "properties": {
+    "model": {
+      "type": "string",
+      "title": "Model",
+      "description": "HuggingFace model ID to deploy",
+      "default": "Qwen/Qwen2.5-7B-Instruct",
+      "enum": [
+        "meta-llama/Llama-3.1-8B-Instruct",
+        "meta-llama/Llama-3.1-70B-Instruct",
+        "mistralai/Mistral-7B-Instruct-v0.3",
+        "Qwen/Qwen2.5-7B-Instruct",
+        "Qwen/Qwen2.5-72B-Instruct",
+        "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",
+        "microsoft/Phi-4"
+      ],
+      "x-cozy-widget": "select",
+      "x-cozy-options": [
+        {"value": "meta-llama/Llama-3.1-8B-Instruct",              "label": "Llama 3.1 8B  — 1× GPU, 40GB VRAM [HF token required]"},
+        {"value": "meta-llama/Llama-3.1-70B-Instruct",             "label": "Llama 3.1 70B — 4× GPU, 160GB VRAM [HF token required]"},
+        {"value": "mistralai/Mistral-7B-Instruct-v0.3",            "label": "Mistral 7B   — 1× GPU, 40GB VRAM"},
+        {"value": "Qwen/Qwen2.5-7B-Instruct",                      "label": "Qwen 2.5 7B  — 1× GPU, 40GB VRAM"},
+        {"value": "Qwen/Qwen2.5-72B-Instruct",                     "label": "Qwen 2.5 72B — 4× GPU, 160GB VRAM"},
+        {"value": "deepseek-ai/DeepSeek-R1-Distill-Llama-8B",      "label": "DeepSeek-R1 8B — 1× GPU, 40GB VRAM"},
+        {"value": "microsoft/Phi-4",                                "label": "Phi-4 14B    — 1× GPU, 40GB VRAM"}
+      ]
+    },
+    "customModel": {
+      "type": "string",
+      "title": "Custom Model (advanced)",
+      "description": "Override the dropdown with any HuggingFace model ID (e.g. org/model). Leave empty to use the selected Model above. Gated models still require a HuggingFace Token — set it up front, since the startup preflight only auto-detects the curated orgs and cannot warn early for others.",
+      "default": "",
+      "pattern": "^$|^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$"
+    },
+    "gpuCount": {
+      "type": "integer",
+      "title": "GPU Count",
+      "description": "Number of GPUs (tensor parallelism)",
+      "default": 1,
+      "enum": [1, 2, 4, 8],
+      "x-cozy-widget": "select",
+      "x-cozy-options": [
+        {"value": 1, "label": "1 GPU  — 40GB VRAM (7–8B models)"},
+        {"value": 2, "label": "2 GPUs — 80GB VRAM (13–14B models)"},
+        {"value": 4, "label": "4 GPUs — 160GB VRAM (70B models)"},
+        {"value": 8, "label": "8 GPUs — 320GB VRAM (70B+ or low latency)"}
+      ]
+    },
+    "quantization": {
+      "type": "string",
+      "title": "Quantization",
+      "description": "Numerical precision. fp16 = best quality, awq/gptq = less VRAM",
+      "default": "fp16",
+      "enum": ["fp16", "fp8", "awq", "gptq"],
+      "x-cozy-widget": "select",
+      "x-cozy-options": [
+        {"value": "fp16",  "label": "fp16 — best quality, full VRAM usage"},
+        {"value": "fp8",   "label": "fp8  — slight quality loss, ~2× VRAM savings"},
+        {"value": "awq",   "label": "awq  — aggressive quant, ~4× savings (model must be pre-quantized)"},
+        {"value": "gptq",  "label": "gptq — similar to awq"}
+      ]
+    },
+    "maxContextLength": {
+      "type": "integer",
+      "title": "Max Context Length",
+      "description": "Maximum number of tokens in a single request (prompt + completion)",
+      "default": 8192,
+      "enum": [4096, 8192, 16384, 32768, 65536, 131072],
+      "x-cozy-widget": "select",
+      "x-cozy-options": [
+        {"value": 4096,   "label": "4K  — minimal VRAM for KV cache"},
+        {"value": 8192,   "label": "8K  — recommended default"},
+        {"value": 16384,  "label": "16K"},
+        {"value": 32768,  "label": "32K"},
+        {"value": 65536,  "label": "64K  — large VRAM overhead"},
+        {"value": 131072, "label": "128K — very large, requires extra VRAM"}
+      ]
+    },
+    "huggingfaceToken": {
+      "type": "string",
+      "title": "HuggingFace Token",
+      "description": "Required for gated models (Llama, Mistral). Stored as a Kubernetes Secret.",
+      "x-cozy-widget": "password",
+      "x-cozy-sensitive": true
+    },
+    "apiKey": {
+      "type": "string",
+      "title": "API Key",
+      "description": "Optional: protect the OpenAI-compatible endpoint with a bearer token",
+      "x-cozy-widget": "password",
+      "x-cozy-sensitive": true
+    },
+    "storage": {
+      "type": "object",
+      "title": "Storage",
+      "properties": {
+        "size": {
+          "type": "string",
+          "title": "Model Cache Size",
+          "description": "PVC size for downloaded model weights",
+          "default": "50Gi",
+          "pattern": "^[0-9]+(Mi|Gi|Ti)$",
+          "x-cozy-widget": "select",
+          "enum": ["50Gi", "100Gi", "200Gi", "500Gi"],
+          "x-cozy-options": [
+            {"value": "50Gi",  "label": "50 GB  — small models (7B fp16)"},
+            {"value": "100Gi", "label": "100 GB — recommended default"},
+            {"value": "200Gi", "label": "200 GB — large models (70B)"},
+            {"value": "500Gi", "label": "500 GB — multiple large models"}
+          ]
+        },
+        "storageClass": {
+          "type": "string",
+          "title": "Storage Class",
+          "description": "Leave empty to use cluster default"
+        }
+      }
+    },
+    "host": {
+      "type": "string",
+      "title": "Hostname",
+      "description": "Expose the API via Ingress at this hostname (e.g. vllm.example.com). Requires apiKey to be set — the chart refuses to publish an unauthenticated endpoint. Leave empty to skip Ingress.",
+      "pattern": "^$|^[a-z0-9][a-z0-9\\-\\.]+[a-z0-9]$"
+    },
+    "resources": {
+      "type": "object",
+      "title": "CPU/Memory overrides (expert)",
+      "description": "Leave empty to use defaults computed from model size",
+      "properties": {
+        "cpu": {
+          "type": "string",
+          "title": "CPU request",
+          "pattern": "^$|^[0-9]+(m|\\.[0-9]+)?$"
+        },
+        "memory": {
+          "type": "string",
+          "title": "Memory request",
+          "pattern": "^$|^[0-9]+(Mi|Gi)$"
+        }
+      }
+    },
+    "replicaCount": {
+      "type": "integer",
+      "title": "Replicas",
+      "description": "Number of inference pods (usually 1 — vLLM is stateful)",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 8
+    },
+    "gpuEnabled": {
+      "type": "boolean",
+      "title": "GPU Enabled",
+      "description": "Set to false for CPU-only mode (very slow, for testing only)",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,76 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "host": {
+      "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+      "type": "string",
+      "default": ""
+    },
+    "storageClass": {
+      "description": "StorageClass for the persistent volume. Leave empty to use cluster default.",
+      "type": "string",
+      "default": ""
+    },
+    "storage": {
+      "description": "Storage configuration.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "size"
+      ],
+      "properties": {
+        "size": {
+          "description": "PVC size. Stable Diffusion checkpoints range from 2GB (SD 1.5) to 12GB+ (SDXL/Flux); 50Gi fits ~4-6 models plus outputs.",
+          "default": "50Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        }
+      }
+    },
+    "gpuEnabled": {
+      "description": "Enable GPU acceleration. Set to false for CPU-only mode (very slow, for testing only).",
+      "type": "boolean",
+      "default": true
+    },
+    "gpuCount": {
+      "description": "Number of GPUs allocated to the pod.",
+      "type": "integer",
+      "default": 1
+    },
+    "resources": {
+      "description": "Resource overrides.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "cpu",
+        "memory"
+      ],
+      "properties": {
+        "cpu": {
+          "description": "CPU request and limit.",
+          "type": "string",
+          "default": "4"
+        },
+        "memory": {
+          "description": "Memory request and limit.",
+          "type": "string",
+          "default": "16Gi"
+        }
+      }
+    },
+    "replicaCount": {
+      "description": "Number of ComfyUI pods. Usually 1 — ComfyUI is stateful and multiple replicas do not share workflow state.",
+      "type": "integer",
+      "default": 1
+    }
+  }
+}

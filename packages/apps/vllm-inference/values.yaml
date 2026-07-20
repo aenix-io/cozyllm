@@ -1,0 +1,59 @@
+# Model to deploy — determines VRAM requirements
+# Each model entry maps to an HF repo (downloaded on first start)
+model: "meta-llama/Llama-3.1-8B-Instruct"
+
+# Custom model override — any HuggingFace model ID (org/model).
+# When set, it takes precedence over `model` above. Gated models still
+# require a HuggingFace token. Leave empty to use `model`.
+customModel: ""
+# Supported values:
+#   meta-llama/Llama-3.1-8B-Instruct      (fits 1× A100 40GB with fp16)
+#   meta-llama/Llama-3.1-70B-Instruct     (fits 4× A100 40GB with fp16)
+#   mistralai/Mistral-7B-Instruct-v0.3    (fits 1× A100 40GB with fp16)
+#   Qwen/Qwen2.5-7B-Instruct              (fits 1× A100 40GB with fp16)
+#   Qwen/Qwen2.5-72B-Instruct             (fits 4× A100 40GB with fp16)
+#   deepseek-ai/DeepSeek-R1-Distill-Llama-8B  (fits 1× A100 40GB with fp16)
+#   microsoft/Phi-4                        (fits 1× A100 40GB with fp16)
+
+# Number of GPUs to allocate (tensor parallel size)
+gpuCount: 1
+# Supported values: 1, 2, 4, 8
+
+# Numerical precision / quantization
+quantization: "fp16"
+# Supported values:
+#   fp16   — full precision, best quality
+#   fp8    — slight quality loss, ~2× VRAM savings
+#   awq    — aggressive quant, ~4× VRAM savings (model must be pre-quantized)
+#   gptq   — similar to awq
+
+# Maximum context window length in tokens
+maxContextLength: 8192
+# Supported values: 4096, 8192, 16384, 32768, 65536, 131072
+
+# HuggingFace token — required for gated models (Llama, Mistral, etc.)
+# Stored as a K8s Secret, never logged
+huggingfaceToken: ""
+
+# OpenAI API key for the inference endpoint (empty = no auth)
+apiKey: ""
+
+# Persistent volume for cached model weights
+storage:
+  size: "50Gi"
+  # storageClass: "" # leave empty to use cluster default
+
+# Ingress — expose the OpenAI-compatible API externally
+host: ""
+# Example: vllm.example.com
+
+# Expert overrides — left empty to use computed defaults based on model/gpuCount
+resources:
+  cpu: ""
+  memory: ""
+
+# Number of replica pods (1 is almost always correct — vLLM is stateful)
+replicaCount: 1
+
+# Set to false to run without GPU (CPU mode, very slow — for testing only)
+gpuEnabled: true

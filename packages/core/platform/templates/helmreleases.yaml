@@ -1,0 +1,3 @@
+# No platform-level operator HelmReleases required.
+# vllm-inference uses a custom chart — per-instance HelmReleases are
+# rendered by Cozystack from the ApplicationDefinition + chartRef below.

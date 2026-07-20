@@ -1,0 +1,48 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for external access via Ingress. Leave empty to skip Ingress.
+host: ""
+
+## @param {string} [storageClass] - StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.
+storageClass: ""
+
+##
+## @section Database configuration
+##
+
+## @typedef {struct} Database - PostgreSQL configuration (managed via the cozystack `Postgres` sibling CR).
+## @field {quantity} size - Persistent Volume size for database storage.
+## @field {int} replicas - Number of database instances.
+## @field {string} user - Database user JupyterHub connects as.
+## @field {string} name - Database name JupyterHub stores its state in.
+## @field {string} [password] - Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.
+
+## @param {Database} database - PostgreSQL configuration.
+database:
+  size: 5Gi
+  replicas: 2
+  user: jupyterhub
+  name: jupyterhub
+  password: ""
+
+##
+## @section Resources
+##
+
+## @typedef {struct} Resources - CPU and memory for each user's notebook server (sets the singleuser limit and guarantee). Leave a field empty for the upstream chart default.
+## @field {string} [cpu] - CPU per notebook (e.g. 1, 2).
+## @field {string} [memory] - Memory per notebook (e.g. 1Gi, 4Gi).
+
+## @param {Resources} [resources] - Per-user notebook resources.
+resources:
+  cpu: ""
+  memory: ""
+
+##
+## @section Replication
+##
+
+## @param {int} replicaCount - Number of JupyterHub hub pods. Usually 1 — multi-replica hub requires sticky sessions which the upstream chart does not configure by default.
+replicaCount: 1

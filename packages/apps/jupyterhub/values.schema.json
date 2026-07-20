@@ -1,0 +1,85 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "host": {
+      "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+      "type": "string",
+      "default": ""
+    },
+    "storageClass": {
+      "description": "StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.",
+      "type": "string",
+      "default": ""
+    },
+    "database": {
+      "description": "PostgreSQL configuration.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "name",
+        "replicas",
+        "size",
+        "user"
+      ],
+      "properties": {
+        "name": {
+          "description": "Database name JupyterHub stores its state in.",
+          "type": "string",
+          "default": "jupyterhub"
+        },
+        "password": {
+          "description": "Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.",
+          "type": "string",
+          "default": ""
+        },
+        "replicas": {
+          "description": "Number of database instances.",
+          "type": "integer",
+          "default": 2
+        },
+        "size": {
+          "description": "Persistent Volume size for database storage.",
+          "default": "5Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        },
+        "user": {
+          "description": "Database user JupyterHub connects as.",
+          "type": "string",
+          "default": "jupyterhub"
+        }
+      }
+    },
+    "resources": {
+      "description": "CPU and memory for each user's notebook server (sets the singleuser limit and guarantee). Leave a field empty for the upstream chart default.",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "cpu": {
+          "description": "CPU cores per notebook (e.g. 1, 2).",
+          "type": "string",
+          "default": ""
+        },
+        "memory": {
+          "description": "Memory per notebook (e.g. 1Gi, 4Gi).",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "replicaCount": {
+      "description": "Number of JupyterHub hub pods. Usually 1 — multi-replica hub requires sticky sessions which the upstream chart does not configure by default.",
+      "type": "integer",
+      "default": 1
+    }
+  }
+}

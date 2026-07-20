@@ -1,0 +1,15 @@
+apiVersion: v2
+name: langflow
+description: Visual workflow builder for LLM pipelines on Cozystack, backed by a managed Postgres
+type: application
+version: 0.2.0
+appVersion: "1.8.0"
+keywords:
+  - ai
+  - llm
+  - workflow
+  - no-code
+  - langflow
+sources:
+  - https://github.com/langflow-ai/langflow
+  - https://github.com/langflow-ai/langflow-helm-charts

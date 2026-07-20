@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "litellm.fullname" . }}-config
+  labels:
+    {{- include "litellm.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    model_list:
+    {{- range .Values.models }}
+      - model_name: {{ .name | quote }}
+        litellm_params:
+          model: {{ printf "openai/%s" .name | quote }}
+          api_base: {{ .url | quote }}
+          {{- if .apiKey }}
+          api_key: {{ .apiKey | quote }}
+          {{- else }}
+          api_key: "none"
+          {{- end }}
+    {{- end }}
+    general_settings:
+      master_key: "os.environ/LITELLM_MASTER_KEY"
+      {{- if .Values.postgres.enabled }}
+      database_url: "os.environ/DATABASE_URL"
+      {{- end }}
+    litellm_settings:
+      request_timeout: 600
+      drop_params: true

@@ -1,0 +1,108 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["masterKey"],
+  "properties": {
+    "masterKey": {
+      "type": "string",
+      "title": "Master API Key",
+      "description": "Admin key for LiteLLM. All clients use this or virtual keys derived from it.",
+      "x-cozy-widget": "password",
+      "x-cozy-sensitive": true
+    },
+    "models": {
+      "type": "array",
+      "title": "LLM Backends",
+      "description": "vLLM inference instances to proxy. URL: http://<release>.<namespace>.svc.cluster.local:8000",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": ["name", "url"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Model name (used by clients in API calls)"
+          },
+          "url": {
+            "type": "string",
+            "title": "vLLM service URL",
+            "pattern": "^http://.+"
+          },
+          "apiKey": {
+            "type": "string",
+            "title": "API Key (if vLLM endpoint is protected)"
+          }
+        }
+      }
+    },
+    "postgres": {
+      "type": "object",
+      "title": "PostgreSQL",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "title": "Enable managed Postgres",
+          "description": "Stores API keys, usage logs, team budgets. Recommended for production.",
+          "default": true
+        },
+        "replicas": {
+          "type": "integer",
+          "title": "Postgres replicas",
+          "default": 1,
+          "minimum": 1,
+          "maximum": 3
+        },
+        "size": {
+          "type": "string",
+          "title": "PVC size",
+          "default": "5Gi",
+          "pattern": "^[0-9]+(Mi|Gi|Ti)$"
+        },
+        "user": {
+          "type": "string",
+          "title": "DB user",
+          "default": "litellm"
+        },
+        "name": {
+          "type": "string",
+          "title": "DB name",
+          "default": "litellm"
+        },
+        "storageClass": {
+          "type": "string",
+          "title": "Storage class",
+          "description": "Leave empty to use cluster default."
+        }
+      }
+    },
+    "host": {
+      "type": "string",
+      "title": "Hostname",
+      "description": "Expose LiteLLM API via Ingress (e.g. llm.example.com). Leave empty for cluster-internal only.",
+      "pattern": "^$|^[a-z0-9][a-z0-9\\-\\.]+[a-z0-9]$"
+    },
+    "resources": {
+      "type": "object",
+      "title": "Resources",
+      "properties": {
+        "cpu": {
+          "type": "string",
+          "title": "CPU",
+          "default": "500m"
+        },
+        "memory": {
+          "type": "string",
+          "title": "Memory",
+          "default": "512Mi"
+        }
+      }
+    },
+    "replicaCount": {
+      "type": "integer",
+      "title": "Replicas",
+      "default": 1,
+      "minimum": 1,
+      "maximum": 5
+    }
+  }
+}

@@ -1,0 +1,70 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-vllm-inference
+  namespace: cozy-public
+spec:
+  chart: ./packages/apps/vllm-inference
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+    namespace: cozy-public
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-litellm
+  namespace: cozy-public
+spec:
+  chart: ./packages/apps/litellm
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+    namespace: cozy-public
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-comfyui
+  namespace: cozy-public
+spec:
+  chart: ./packages/apps/comfyui
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+    namespace: cozy-public
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-jupyterhub
+  namespace: cozy-public
+spec:
+  chart: ./packages/apps/jupyterhub
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+    namespace: cozy-public
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-langflow
+  namespace: cozy-public
+spec:
+  chart: ./packages/apps/langflow
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+    namespace: cozy-public

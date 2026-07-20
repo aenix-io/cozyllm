@@ -1,0 +1,5 @@
+# Local Telegram downloads — private, never commit
+.tg-downloads/
+
+# macOS
+.DS_Store
