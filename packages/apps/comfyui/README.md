@@ -8,10 +8,11 @@ Powered by [ComfyUI](https://github.com/comfyanonymous/ComfyUI) with the [ai-doc
 
 ### Common parameters
 
-| Name           | Description                                                                 | Type     | Value |
-| -------------- | --------------------------------------------------------------------------- | -------- | ----- |
-| `host`         | Hostname for external access via Ingress. Leave empty to skip Ingress.      | `string` | `""`  |
-| `storageClass` | StorageClass for the persistent volume. Leave empty to use cluster default. | `string` | `""`  |
+| Name           | Description                                                                                                                                                                                                                | Type     | Value   |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ------- |
+| `host`         | Hostname for external access via Ingress. Leave empty to skip Ingress.                                                                                                                                                     | `string` | `""`    |
+| `storageClass` | StorageClass for the persistent volume. Leave empty to use cluster default.                                                                                                                                                | `string` | `""`    |
+| `computePlane` | Deploy the workload onto the tenant's ComputePlane (requires the computeplane tenant module, cozystack >= the release shipping it). When false, the app runs co-located in the tenant namespace on the management cluster. | `bool`   | `false` |
 
 
 ### Storage
