@@ -8,6 +8,9 @@ host: ""
 ## @param {string} [storageClass] - StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.
 storageClass: ""
 
+## @param {bool} computePlane - Deploy the workload onto the tenant's ComputePlane (requires the computeplane tenant module, cozystack >= the release shipping it). When false, the app runs co-located in the tenant namespace on the management cluster.
+computePlane: false
+
 ##
 ## @section Database configuration
 ##
