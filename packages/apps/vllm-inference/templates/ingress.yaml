@@ -1,0 +1,37 @@
+{{- if .Values.host }}
+{{- if not .Values.apiKey }}
+{{- fail "vllm-inference: refusing to expose an unauthenticated inference endpoint — set spec.apiKey when spec.host is set, or leave host empty for cluster-internal access only." }}
+{{- end }}
+{{- $cluster := .Values._cluster | default dict }}
+{{- $solver := index $cluster "solver" | default "http01" }}
+{{- $clusterIssuer := index $cluster "issuer-name" | default "letsencrypt-prod" }}
+{{- $ingressClass := index $cluster "expose-ingress" | default "tenant-root" }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "vllm-inference.fullname" . }}
+  labels:
+    {{- include "vllm-inference.labels" . | nindent 4 }}
+  annotations:
+    cert-manager.io/cluster-issuer: {{ $clusterIssuer }}
+    {{- if eq $solver "http01" }}
+    acme.cert-manager.io/http01-ingress-ingressclassname: {{ $ingressClass }}
+    {{- end }}
+spec:
+  ingressClassName: {{ $ingressClass }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "vllm-inference.fullname" . }}
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ include "vllm-inference.fullname" . }}-tls
+{{- end }}

@@ -1,0 +1,79 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  # cozystack already creates an outer HelmRelease named `{{ .Release.Name }}` from
+  # the ApplicationDefinition; the wrapping HelmRelease we render here must have a
+  # different name to avoid the "patch a resource with different ownership" failure.
+  name: {{ .Release.Name }}-app
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: jupyterhub
+      # renovate: datasource=helm depName=jupyterhub registryUrl=https://jupyterhub.github.io/helm-chart/
+      version: 4.4.0
+      sourceRef:
+        kind: HelmRepository
+        name: jupyterhub
+        namespace: external-jupyterhub
+  dependsOn:
+    - name: postgres-{{ .Release.Name }}-db
+      namespace: {{ .Release.Namespace }}
+  values:
+    # Multi-tenancy: the dedicated user-scheduler ships a cluster-scoped
+    # ClusterRole + ClusterRoleBinding (a copy of system:kube-scheduler) that
+    # would let any tenant read pods/nodes cluster-wide and collide on a
+    # fixed cluster-scoped name. Disable it so the hub uses the default
+    # kube-scheduler and emits only namespaced RBAC.
+    scheduling:
+      userScheduler:
+        enabled: false
+    {{- if and .Values.resources (or .Values.resources.cpu .Values.resources.memory) }}
+    singleuser:
+      {{- with .Values.resources.cpu }}
+      cpu:
+        limit: {{ . }}
+        guarantee: {{ . }}
+      {{- end }}
+      {{- with .Values.resources.memory }}
+      memory:
+        limit: {{ . | quote }}
+        guarantee: {{ . | quote }}
+      {{- end }}
+    {{- end }}
+    hub:
+      db:
+        type: postgres
+        url: postgresql://{{ .Values.database.user }}@postgres-{{ .Release.Name }}-db-rw:5432/{{ .Values.database.name }}
+      {{- if eq (printf "%v" (index (.Values._cluster | default dict) "oidc-enabled" | default "false")) "true" }}
+      # Behind the OIDC gatekeeper, tie the hub identity to the SSO identity
+      # instead of the upstream "dummy" authenticator (which would let any
+      # gatekeeper-admitted tenant member log in as any username). oauth2-proxy
+      # injects the authenticated identity as X-Forwarded-* headers; trust them
+      # and auto-login so there is no second login form.
+      extraConfig:
+        00-trusted-header-auth: |
+          from jupyterhub.auth import Authenticator
+          class _ProxyHeaderAuthenticator(Authenticator):
+              async def authenticate(self, handler, data=None):
+                  ident = (
+                      handler.request.headers.get("X-Forwarded-Preferred-Username")
+                      or handler.request.headers.get("X-Forwarded-Email")
+                      or handler.request.headers.get("X-Forwarded-User")
+                  )
+                  if not ident:
+                      return None
+                  return {"name": ident.split("@", 1)[0].lower()}
+          c.JupyterHub.authenticator_class = _ProxyHeaderAuthenticator
+          c.Authenticator.auto_login = True
+      {{- end }}
+    # Exposure (Ingress) is handled by the OIDC gatekeeper (templates/
+    # gatekeeper.yaml), never by z2jh directly — so the hub is never reachable
+    # from outside the cluster without authenticating through Keycloak.
+    ingress:
+      enabled: false
+  valuesFrom:
+    - kind: Secret
+      name: postgres-{{ .Release.Name }}-db-credentials
+      valuesKey: {{ .Values.database.user }}
+      targetPath: hub.db.password

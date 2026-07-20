@@ -1,0 +1,11 @@
+# markdownlint configuration.
+#
+# Prose is written one continuous line per paragraph — the renderer wraps to
+# the viewer's width, so a fixed line-length limit would fight that convention.
+# Disable MD013; keep every other default rule.
+default: true
+# Prose is one line per paragraph; a fixed line length would fight that.
+MD013: false
+# Tables use single-space-padded pipes (| cell |, | --- |), not full
+# column alignment — MD060's strict "aligned"/"compact" modes do not fit.
+MD060: false

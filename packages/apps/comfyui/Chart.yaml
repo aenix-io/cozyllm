@@ -1,0 +1,16 @@
+apiVersion: v2
+name: comfyui
+description: Self-hosted node-based UI for Stable Diffusion image generation on Cozystack
+type: application
+version: 0.2.0
+# ai-dock/comfyui release tag (see image in templates/deployment.yaml)
+appVersion: "0.2.7"
+keywords:
+  - ai
+  - image-generation
+  - stable-diffusion
+  - gpu
+  - comfyui
+sources:
+  - https://github.com/comfyanonymous/ComfyUI
+  - https://github.com/ai-dock/comfyui

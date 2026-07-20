@@ -1,0 +1,72 @@
+{{- /*
+HolmesGPT — admin-only platform component (see values.yaml).
+
+Deliberately installed here, NOT via an ApplicationDefinition: the upstream
+holmes chart creates a cluster-scoped ClusterRole/ClusterRoleBinding granting
+cluster-wide read of pods, pod logs, configmaps and services. That is fine for
+a single operator-owned instance the cluster admin opts into, but would be a
+cross-tenant isolation breach if any tenant could deploy it from the dashboard.
+Gating it on holmesgpt.enabled keeps it out of the tenant marketplace entirely.
+*/ -}}
+{{- if .Values.holmesgpt.enabled }}
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-holmesgpt
+  labels:
+    cozystack.io/system: "true"
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: holmes
+  namespace: cozy-holmesgpt
+spec:
+  interval: 5m
+  url: https://robusta-charts.storage.googleapis.com
+{{- if .Values.holmesgpt.openaiApiKey }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: holmesgpt-llm-key
+  namespace: cozy-holmesgpt
+type: Opaque
+stringData:
+  api-key: {{ .Values.holmesgpt.openaiApiKey | quote }}
+{{- end }}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: holmesgpt
+  namespace: cozy-holmesgpt
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: holmes
+      # renovate: datasource=helm depName=holmes registryUrl=https://robusta-charts.storage.googleapis.com
+      version: 0.33.0
+      sourceRef:
+        kind: HelmRepository
+        name: holmes
+        namespace: cozy-holmesgpt
+  values:
+    replicas: {{ .Values.holmesgpt.replicas }}
+    additionalEnvVars:
+      - name: MODEL
+        value: {{ .Values.holmesgpt.model | quote }}
+      {{- with .Values.holmesgpt.openaiBaseUrl }}
+      - name: OPENAI_BASE_URL
+        value: {{ . | quote }}
+      {{- end }}
+      {{- if .Values.holmesgpt.openaiApiKey }}
+      - name: OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: holmesgpt-llm-key
+            key: api-key
+      {{- end }}
+{{- end }}

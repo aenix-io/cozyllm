@@ -1,0 +1,34 @@
+ComfyUI release {{ .Release.Name }} created.
+
+The pod requires:
+  - 1 NVIDIA GPU on the target node (gpuEnabled={{ .Values.gpuEnabled }})
+  - A bound PVC of {{ .Values.storage.size }} on storageClass {{ .Values.storageClass | default "(default)" | quote }}
+  - First image pull is ~5 GB (ghcr.io/ai-dock/comfyui); allow 5-10 min.
+
+{{- $oidc := eq (printf "%v" (index (.Values._cluster | default dict) "oidc-enabled" | default "false")) "true" }}
+{{- if and .Values.host $oidc }}
+Access at https://{{ .Values.host }} — every request is authenticated
+through the platform Keycloak SSO and restricted to your tenant's groups.
+ComfyUI ships no auth of its own, so the gatekeeper is the only boundary.
+{{- else }}
+{{- if .Values.host }}
+A host is set but cluster OIDC is disabled, so nothing is published — an
+unauthenticated GPU UI must never be exposed. Reach it via port-forward:
+{{- else }}
+Access via port-forward (no host set):
+{{- end }}
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "comfyui.fullname" . }} 8188:8188
+  open http://localhost:8188
+{{- end }}
+
+If the pod stays Pending, inspect:
+
+  kubectl -n {{ .Release.Namespace }} describe pod -l app.kubernetes.io/instance={{ .Release.Name }} | tail -30
+  kubectl -n {{ .Release.Namespace }} get pvc -l app.kubernetes.io/instance={{ .Release.Name }}
+
+Common failures:
+  - No node with available nvidia.com/gpu (the chart requests {{ .Values.gpuCount }}).
+  - PVC unbound: the chosen storageClass does not exist or has no capacity.
+  - CrashLoopBackOff during startup: the ai-dock image needs CUDA at boot.
+    Setting gpuEnabled=false in production is not supported.

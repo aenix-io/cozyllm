@@ -1,0 +1,149 @@
+{{- $model := .Values.customModel | default .Values.model }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vllm-inference.fullname" . }}
+  labels:
+    {{- include "vllm-inference.labels" . | nindent 4 }}
+    cozyllm.io/model: "true"
+    cozyllm.io/model-name: {{ $model | replace "/" "-" | lower | trunc 63 | trimSuffix "-" | quote }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "vllm-inference.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "vllm-inference.selectorLabels" . | nindent 8 }}
+        cozyllm.io/model: "true"
+    spec:
+      {{- if .Values.gpuEnabled }}
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      {{- end }}
+      initContainers:
+        # Preflight: catch the most common operator mistakes before vLLM starts
+        # the multi-minute model download, so the pod logs surface a useful
+        # error in seconds rather than a Python traceback 5 minutes later.
+        - name: preflight
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: ["sh", "-c"]
+          args:
+            - |
+              set -u
+              echo "preflight: model={{ $model }} gpuEnabled={{ .Values.gpuEnabled }} quantization={{ .Values.quantization }}"
+
+              {{- $org := index ($model | splitList "/") 0 }}
+              {{- /* Only meta-llama gates its models on HuggingFace (gated=manual);
+                     mistralai/Mistral-7B-Instruct-v0.3 and microsoft/Phi-4 are public. */ -}}
+              {{- $gated := list "meta-llama" }}
+              {{- if has $org $gated }}
+              if [ -z "${HF_TOKEN:-}" ]; then
+                echo ""
+                echo "================================================================"
+                echo "FATAL: model '{{ $model }}' is gated on HuggingFace and"
+                echo "       requires an access token. Set spec.huggingfaceToken in"
+                echo "       the VllmInference CR to a token with read access."
+                echo ""
+                echo "       Without it vLLM will fail to download model weights with"
+                echo "       a 401 from HuggingFace and crash-loop indefinitely."
+                echo "================================================================"
+                exit 1
+              fi
+              {{- end }}
+
+              {{- if and .Values.gpuEnabled (eq .Values.quantization "fp16") }}
+              # 7-8B models in fp16 need ~16GB VRAM; 70B+ need much more.
+              # We cannot probe VRAM from busybox, but we can warn loudly so the
+              # pod logs explain the inevitable OOM that follows.
+              echo "preflight: NOTE — fp16 at {{ .Values.maxContextLength }} ctx requires substantial GPU VRAM."
+              echo "preflight: 7-8B model -> ~16GB, 70B model -> ~160GB+, larger context multiplies KV cache."
+              {{- end }}
+
+              echo "preflight: ok"
+          env:
+            {{- if .Values.huggingfaceToken }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "vllm-inference.fullname" . }}-hf-token
+                  key: token
+            {{- end }}
+      containers:
+        - name: vllm
+          image: "vllm/vllm-openai:v{{ .Chart.AppVersion }}"
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--model"
+            - {{ $model | quote }}
+            - "--tensor-parallel-size"
+            - {{ .Values.gpuCount | quote }}
+            - "--max-model-len"
+            - {{ .Values.maxContextLength | quote }}
+            - "--served-model-name"
+            - {{ $model | quote }}
+            - "--download-dir"
+            - "/data/hf_cache"
+            {{- if ne .Values.quantization "fp16" }}
+            - "--quantization"
+            - {{ .Values.quantization | quote }}
+            {{- end }}
+            {{- if .Values.apiKey }}
+            - "--api-key"
+            - "$(VLLM_API_KEY)"
+            {{- end }}
+          env:
+            - name: HF_HOME
+              value: /data/hf_cache
+            {{- if .Values.huggingfaceToken }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "vllm-inference.fullname" . }}-hf-token
+                  key: token
+            {{- end }}
+            {{- if .Values.apiKey }}
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "vllm-inference.fullname" . }}-api-key
+                  key: key
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          # No readiness probe — vLLM downloads model on startup (10-30 min).
+          # Helm install would timeout waiting for readiness. The pod is
+          # available once Running; /health returns 503 until model loads.
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 300
+            periodSeconds: 30
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: {{ default "4" .Values.resources.cpu | quote }}
+              memory: {{ default "16Gi" .Values.resources.memory | quote }}
+              {{- if .Values.gpuEnabled }}
+              nvidia.com/gpu: {{ .Values.gpuCount }}
+              {{- end }}
+            limits:
+              cpu: {{ default "4" .Values.resources.cpu | quote }}
+              memory: {{ default "16Gi" .Values.resources.memory | quote }}
+              {{- if .Values.gpuEnabled }}
+              nvidia.com/gpu: {{ .Values.gpuCount }}
+              {{- end }}
+          volumeMounts:
+            - name: model-cache
+              mountPath: /data
+      volumes:
+        - name: model-cache
+          persistentVolumeClaim:
+            claimName: {{ include "vllm-inference.fullname" . }}-model-cache

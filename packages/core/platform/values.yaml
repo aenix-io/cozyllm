@@ -1,0 +1,30 @@
+# HolmesGPT — admin-only AI SRE agent for Kubernetes troubleshooting.
+#
+# Installed as a SINGLE cluster-wide platform component, NOT as a tenant app.
+# The upstream chart grants cluster-wide read RBAC (pods, pod logs, configmaps,
+# services across every namespace) — appropriate for one operator-owned
+# instance, but a cross-tenant breach if any tenant could deploy it. It is
+# therefore gated here and deliberately never registered as an
+# ApplicationDefinition, so it cannot appear in the tenant dashboard.
+#
+# Enable it on the cozyllm platform HelmRelease:
+#   spec:
+#     values:
+#       holmesgpt:
+#         enabled: true
+#         model: "openai/qwen-7b"
+#         openaiBaseUrl: "http://litellm-<release>.<namespace>.svc.cluster.local:4000/v1"
+#         openaiApiKey: "<litellm-master-key>"
+holmesgpt:
+  # Set to true to install the cluster-wide HolmesGPT instance.
+  enabled: false
+  # LiteLLM-format model id (e.g. openai/qwen-7b, anthropic/claude-3-5-sonnet).
+  model: "openai/gpt-4o"
+  # OpenAI-compatible endpoint. Point at an in-cluster LiteLLM gateway to keep
+  # SRE LLM calls inside the cluster. Empty falls back to the public OpenAI API.
+  openaiBaseUrl: ""
+  # Bearer token for the endpoint (for LiteLLM, the master key). Stored as a
+  # Secret. Leave empty when the endpoint needs no auth.
+  openaiApiKey: ""
+  # Number of HolmesGPT replicas.
+  replicas: 1

@@ -1,0 +1,21 @@
+CozyLLM
+Copyright 2026 The CozyLLM Authors
+
+The code in this repository (Helm charts, templates, platform manifests, documentation, and tooling) is licensed under the Apache License, Version 2.0 (see the LICENSE file).
+
+This repository does not store or redistribute the applications it deploys. The application payloads (container images and upstream Helm charts) are retrieved at deploy time from their upstream sources and retain their own upstream licenses. Deploying and operating an application means accepting that application's upstream license terms.
+
+Product names and logos referenced in this repository are used for identification purposes only and are trademarks of their respective owners.
+
+Upstream licenses of the applications this catalog deploys:
+
+| Application | Upstream license |
+| --- | --- |
+| vLLM | Apache-2.0 |
+| LiteLLM | MIT (core). Note: the litellm-database container image used by proxy deployments also contains BerriAI enterprise-licensed code; those enterprise features are inactive without a commercial license key from BerriAI. |
+| JupyterHub | BSD-3-Clause |
+| Langflow | MIT |
+| ComfyUI | GPL-3.0 |
+| HolmesGPT | MIT (see the upstream robusta-dev/holmesgpt repository for authoritative license terms) |
+
+Consult each upstream project for the authoritative and current license text before offering these applications to third parties.

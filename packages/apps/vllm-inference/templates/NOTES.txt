@@ -1,0 +1,28 @@
+vLLM inference release {{ .Release.Name }} created.
+
+First start downloads model '{{ .Values.model }}' from HuggingFace.
+This typically takes 5-15 minutes depending on model size and network.
+The /health endpoint returns 503 until the model finishes loading;
+there is no readinessProbe by design.
+
+Watch progress:
+
+  kubectl -n {{ .Release.Namespace }} logs -l cozyllm.io/model=true -f
+
+If the pod does not reach Running, inspect:
+
+  kubectl -n {{ .Release.Namespace }} get pod -l cozyllm.io/model=true
+  kubectl -n {{ .Release.Namespace }} describe pod -l cozyllm.io/model=true | tail -30
+  kubectl -n {{ .Release.Namespace }} get events --sort-by=.lastTimestamp | tail -20
+
+Common failures:
+  - Pod Pending: cluster has no node with available nvidia.com/gpu, or the
+    memory request ({{ default "16Gi" .Values.resources.memory }}) cannot be satisfied on any node.
+  - InitContainer preflight Failed: huggingfaceToken is required for the
+    selected gated model (Llama, Mistral, Phi-4). Patch the CR with a valid token.
+  - CrashLoopBackOff after model download: OOM during model load. Increase
+    resources.memory, switch to a smaller model, or enable fp8/awq quantization.
+  - 401/403 from HuggingFace: huggingfaceToken is invalid or lacks access to
+    the specific gated model.
+
+In-cluster URL once Ready: http://{{ include "vllm-inference.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:8000/v1

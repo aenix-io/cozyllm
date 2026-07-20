@@ -1,0 +1,37 @@
+# Master API key — required. All clients use this (or virtual keys derived from it).
+masterKey: ""
+
+# List of vLLM inference backends to proxy.
+# Each entry maps a user-facing model name to a vLLM instance in the cluster.
+# URL follows the pattern: http://<release-name>.<namespace>.svc.cluster.local:8000
+models: []
+# Example:
+# models:
+#   - name: qwen-7b
+#     url: http://vllm-inference-qwen.<namespace>.svc.cluster.local:8000
+#     apiKey: ""
+#   - name: deepseek-r1
+#     url: http://vllm-inference-deepseek.<namespace>.svc.cluster.local:8000
+#     apiKey: ""
+
+# PostgreSQL database for API keys, usage logs, team budgets.
+# Provisioned as a Cozystack-managed Postgres instance via the sibling
+# `Postgres` CR — credentials come from the cozystack-canonical
+# `postgres-<name>-credentials` Secret (key = `.user`).
+postgres:
+  enabled: true
+  replicas: 1
+  size: 5Gi
+  user: litellm
+  name: litellm
+  storageClass: ""
+
+# Ingress — expose the unified OpenAI-compatible API
+host: ""
+
+# Resource limits for the LiteLLM proxy pod
+resources:
+  cpu: "500m"
+  memory: "512Mi"
+
+replicaCount: 1

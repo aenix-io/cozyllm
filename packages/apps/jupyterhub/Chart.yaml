@@ -1,0 +1,15 @@
+apiVersion: v2
+name: jupyterhub
+description: Multi-user JupyterHub notebooks on Cozystack, backed by a managed Postgres
+type: application
+version: 0.2.0
+appVersion: "5.5.0"
+keywords:
+  - ai
+  - ml
+  - notebook
+  - jupyter
+  - jupyterhub
+sources:
+  - https://github.com/jupyterhub/zero-to-jupyterhub-k8s
+  - https://jupyter.org/hub

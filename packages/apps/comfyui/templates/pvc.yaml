@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "comfyui.fullname" . }}-data
+  labels:
+    {{- include "comfyui.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.storage.size | quote }}
+  {{- with .Values.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}

@@ -1,0 +1,21 @@
+LiteLLM gateway release {{ .Release.Name }} created.
+
+First start waits for the sibling Postgres CR to reconcile, which takes
+3-5 minutes on the first install. If LiteLLM stays in Progressing longer
+than that, inspect:
+
+  kubectl -n {{ .Release.Namespace }} get helmreleases | grep {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get pod -l app.kubernetes.io/instance={{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} describe pod -l app.kubernetes.io/instance={{ .Release.Name }} | tail -30
+  kubectl -n {{ .Release.Namespace }} get postgres {{ include "litellm.postgresName" . }} -o yaml | head -40
+
+Common failures:
+  - Pod Pending: insufficient CPU/memory on any node.
+  - init container wait-for-postgres stuck: sibling Postgres CR is not
+    reconciling. Check postgres-{{ include "litellm.postgresName" . }} HelmRelease status.
+  - CrashLoopBackOff with "FATAL: password authentication failed": the
+    postgres-{{ include "litellm.postgresName" . }}-credentials Secret lacks a key matching
+    spec.postgres.user ({{ .Values.postgres.user }}).
+
+In-cluster URL once Ready: http://{{ include "litellm.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local:4000/v1
+Use spec.masterKey as the Authorization Bearer token.

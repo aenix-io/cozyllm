@@ -1,0 +1,28 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-vllm-inference
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-litellm
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-jupyterhub
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-langflow

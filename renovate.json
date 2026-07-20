@@ -1,0 +1,60 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":dependencyDashboard",
+    ":timezone(Etc/UTC)",
+    "schedule:earlyMondays",
+    "group:recommended"
+  ],
+  "labels": ["dependencies", "automated"],
+  "prHourlyLimit": 4,
+  "prConcurrentLimit": 10,
+  "rebaseWhen": "behind-base-branch",
+  "branchPrefix": "renovate/",
+  "commitMessagePrefix": "chore(deps): ",
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Pick up upstream Helm chart pins inside Flux HelmRelease wrappers, when annotated with a renovate hint comment immediately above the version line.",
+      "fileMatch": [
+        "^packages/apps/.*/templates/.*\\.yaml$"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z]+) depName=(?<depName>[^\\s]+)(?: registryUrl=(?<registryUrl>[^\\s]+))?\\s+version:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+      ]
+    },
+    {
+      "customType": "regex",
+      "description": "Pick up appVersion pins in Chart.yaml that track an upstream container image, when annotated with a renovate hint comment.",
+      "fileMatch": [
+        "^packages/apps/.*/Chart\\.yaml$"
+      ],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>[a-z]+) depName=(?<depName>[^\\s]+)(?: registryUrl=(?<registryUrl>[^\\s]+))?\\s+appVersion:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
+      ]
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "All upstream Helm chart bumps grouped per app and labelled as a wrapper bump — easier to review one chart at a time.",
+      "matchManagers": ["custom.regex"],
+      "matchFileNames": ["packages/apps/*/templates/*.yaml"],
+      "groupName": "upstream chart wrapper bumps"
+    },
+    {
+      "description": "Patch bumps auto-merge to main when CI is green. Minor/major still need human review.",
+      "matchUpdateTypes": ["patch"],
+      "automerge": true,
+      "platformAutomerge": true
+    },
+    {
+      "description": "Major upgrades open a draft PR and never auto-merge — they may break openAPISchema or wiring.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "prCreation": "approval",
+      "labels": ["dependencies", "automated", "major-bump"]
+    }
+  ]
+}

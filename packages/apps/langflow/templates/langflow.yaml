@@ -1,0 +1,81 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  # cozystack already creates an outer HelmRelease named `{{ .Release.Name }}` from
+  # the ApplicationDefinition; the wrapping HelmRelease we render here must have a
+  # different name to avoid the "patch a resource with different ownership" failure.
+  name: {{ .Release.Name }}-app
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: langflow-ide
+      # renovate: datasource=helm depName=langflow-ide registryUrl=https://langflow-ai.github.io/langflow-helm-charts/
+      version: 0.1.2
+      sourceRef:
+        kind: HelmRepository
+        name: langflow
+        namespace: external-langflow
+  dependsOn:
+    - name: postgres-{{ .Release.Name }}-db
+      namespace: {{ .Release.Namespace }}
+  values:
+    # Bundled postgresql subchart is replaced with the cozystack-managed Postgres
+    # provisioned via the Pattern C sibling CR in templates/postgres.yaml.
+    postgresql:
+      enabled: false
+    langflow:
+      # Pin the Langflow image: the upstream langflow-ide chart defaults every
+      # image tag to the floating "latest", so without this override the
+      # deployed Langflow version drifts on every pod restart. Keep this in
+      # sync with Chart.yaml appVersion.
+      global:
+        image:
+          tag: {{ .Chart.AppVersion | quote }}
+      # global.image.tag does not cascade to the frontend image, so pin it too.
+      frontend:
+        image:
+          tag: {{ .Chart.AppVersion | quote }}
+      backend:
+        image:
+          tag: {{ .Chart.AppVersion | quote }}
+        {{- if and .Values.resources (or .Values.resources.cpu .Values.resources.memory) }}
+        resources:
+          requests:
+            {{- with .Values.resources.cpu }}
+            cpu: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.resources.memory }}
+            memory: {{ . | quote }}
+            {{- end }}
+          limits:
+            {{- with .Values.resources.cpu }}
+            cpu: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.resources.memory }}
+            memory: {{ . | quote }}
+            {{- end }}
+        {{- end }}
+        externalDatabase:
+          enabled: true
+          driver:
+            value: "postgresql"
+          host:
+            value: "postgres-{{ .Release.Name }}-db-rw"
+          port:
+            value: "5432"
+          user:
+            value: "{{ .Values.database.user }}"
+          password:
+            valueFrom:
+              secretKeyRef:
+                name: "postgres-{{ .Release.Name }}-db-credentials"
+                key: "{{ .Values.database.user }}"
+          database:
+            value: "{{ .Values.database.name }}"
+    # Exposure (Ingress) is handled by the OIDC gatekeeper (templates/
+    # gatekeeper.yaml), never by the upstream chart — so Langflow (which
+    # defaults to AUTO_LOGIN) is never reachable from outside the cluster
+    # without authenticating through Keycloak.
+    ingress:
+      enabled: false
