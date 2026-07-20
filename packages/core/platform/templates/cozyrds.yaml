@@ -469,6 +469,11 @@ spec:
             "type": "string",
             "default": ""
           },
+          "computePlane": {
+            "description": "Deploy the workload onto the tenant's ComputePlane (requires the computeplane tenant module, cozystack \u003e= the release shipping it). When false, the app runs co-located in the tenant namespace on the management cluster.",
+            "type": "boolean",
+            "default": false
+          },
           "database": {
             "description": "PostgreSQL configuration.",
             "type": "object",
@@ -517,12 +522,20 @@ spec:
             }
           },
           "resources": {
-            "description": "CPU and memory for each user's notebook server (sets the singleuser limit and guarantee). Leave a field empty for the upstream chart default.",
+            "description": "Per-user notebook resources.",
             "type": "object",
             "default": {},
             "properties": {
-              "cpu": {"type": "string", "title": "CPU", "default": "", "description": "CPU cores per notebook (e.g. 1, 2)."},
-              "memory": {"type": "string", "title": "Memory", "default": "", "description": "Memory per notebook (e.g. 1Gi, 4Gi)."}
+              "cpu": {
+                "description": "CPU per notebook (e.g. 1, 2).",
+                "type": "string",
+                "default": ""
+              },
+              "memory": {
+                "description": "Memory per notebook (e.g. 1Gi, 4Gi).",
+                "type": "string",
+                "default": ""
+              }
             }
           },
           "replicaCount": {
@@ -567,6 +580,8 @@ spec:
         - resources
       - - spec
         - replicaCount
+      - - spec
+        - computePlane
 ---
 apiVersion: cozystack.io/v1alpha1
 kind: ApplicationDefinition
