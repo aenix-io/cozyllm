@@ -1,0 +1,15 @@
+apiVersion: v2
+name: n8n
+description: Workflow automation platform on Cozystack, backed by a managed Postgres
+type: application
+version: 0.2.0
+appVersion: "1.122.4"
+keywords:
+  - workflow
+  - automation
+  - low-code
+  - integration
+  - n8n
+sources:
+  - https://github.com/n8n-io/n8n
+  - https://github.com/8gears/n8n-helm-chart

@@ -15,14 +15,17 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate platform chart still renders on tag
+      - name: Validate platform charts still render on tag
         run: |
+          set -e
           curl -sSL https://baltocdn.com/helm/signing.asc | sudo gpg --dearmor -o /usr/share/keyrings/helm.gpg
           echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" \
             | sudo tee /etc/apt/sources.list.d/helm-stable-debian.list
           sudo apt-get update
           sudo apt-get install -y helm
-          helm template release-check packages/core/platform > /dev/null
+          for section in free contrib; do
+            helm template release-check "$section/packages/core/platform" > /dev/null
+          done
 
       - name: Create release
         uses: softprops/action-gh-release@v2

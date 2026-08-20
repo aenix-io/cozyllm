@@ -1,0 +1,37 @@
+Open WebUI release {{ .Release.Name }} created.
+
+First start waits for the sibling Postgres CR (3-5 min){{ if .Values.qdrant.enabled }} and Qdrant CR{{ end }}.
+
+Watch progress:
+
+  kubectl -n {{ .Release.Namespace }} get helmreleases | grep {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get pod -l app.kubernetes.io/instance={{ .Release.Name }}-app
+
+{{- $oidc := eq (printf "%v" (index (.Values._cluster | default dict) "oidc-enabled" | default "false")) "true" }}
+{{- if and .Values.host $oidc }}
+Access at https://{{ .Values.host }} — every request is authenticated
+through the platform Keycloak SSO and restricted to your tenant's groups.
+Users are signed in automatically from their SSO identity.
+{{- else }}
+{{- if .Values.host }}
+A host is set but cluster OIDC is disabled, so nothing is published — an
+unauthenticated chat UI must never be exposed. Reach it via port-forward:
+{{- else }}
+Access via port-forward (no host set):
+{{- end }}
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-webui 3000:80
+  open http://localhost:3000
+
+On first visit, create the owner account (email + password). Subsequent
+sign-ups are pending-approval; approve them from Admin Panel.
+{{- end }}
+
+Common failures:
+  - Pod Pending: insufficient capacity on any node.
+  - "DATABASE_URL not set": sibling Postgres has not finished reconciling
+    yet; the pod will retry once the postgres-{{ .Release.Name }}-db-credentials
+    Secret materialises.
+  - Models do not appear in UI: check Settings -> Connections -> OpenAI API.
+    spec.openaiBaseApiUrl and spec.openaiApiKey populate this on first install
+    only; later changes need a UI edit.

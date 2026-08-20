@@ -15,7 +15,7 @@ This catalog plugs into an existing Cozystack cluster. It does not deploy Cozyst
 ## 1. Apply the bootstrap manifest
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/aenix-io/cozyllm/main/init.yaml
+kubectl apply -f https://raw.githubusercontent.com/aenix-io/cozyllm/main/free/init.yaml
 ```
 
 This creates two resources in `cozy-public`:

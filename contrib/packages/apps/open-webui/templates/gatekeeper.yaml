@@ -1,0 +1,261 @@
+{{- /*
+OIDC gatekeeper — mirrors the cozystack convention (see linstor-gui in
+cozystack/cozystack). A web UI is exposed via Ingress ONLY when the
+operator set a host AND the cluster has OIDC enabled. The Ingress points
+at an oauth2-proxy that authenticates every request against the platform
+Keycloak realm and only admits members of THIS tenant's groups, so a raw
+unauthenticated Open WebUI is never reachable from outside the cluster.
+When OIDC is disabled we deliberately publish nothing — reach the UI with
+`kubectl port-forward` instead.
+*/ -}}
+{{- $cluster := .Values._cluster | default dict }}
+{{- $rootHost := index $cluster "root-host" }}
+{{- $oidcEnabled := printf "%v" (index $cluster "oidc-enabled" | default "false") }}
+{{- $oidcInsecureSkipVerify := printf "%v" (index $cluster "oidc-insecure-skip-verify" | default "false") }}
+{{- $keycloakInternalUrl := index $cluster "keycloak-internal-url" | default "" }}
+{{- $solver := index $cluster "solver" | default "http01" }}
+{{- $clusterIssuer := index $cluster "issuer-name" | default "letsencrypt-prod" }}
+{{- $ingressClass := index $cluster "expose-ingress" | default "tenant-root" }}
+{{- if and .Values.host (eq $oidcEnabled "true") }}
+{{- /* Must match fullnameOverride set on the inner HelmRelease in open-webui.yaml. */ -}}
+{{- $upstream := printf "http://%s-webui.%s.svc:80" .Release.Name .Release.Namespace }}
+{{- /*
+Persist the client + cookie secrets across upgrades: reuse the existing
+values when the Secrets are already present, otherwise generate them.
+*/ -}}
+{{- $existingClient := lookup "v1" "Secret" .Release.Namespace (printf "%s-oidc-client" .Release.Name) }}
+{{- $clientSecret := randAlphaNum 32 }}
+{{- if and $existingClient (hasKey ($existingClient.data | default dict) "client-secret-key") }}
+{{- $clientSecret = index $existingClient.data "client-secret-key" | b64dec }}
+{{- end }}
+{{- $existingCookie := lookup "v1" "Secret" .Release.Namespace (printf "%s-oidc-cookie" .Release.Name) }}
+{{- $cookieSecret := randAlphaNum 16 }}
+{{- if and $existingCookie (hasKey ($existingCookie.data | default dict) "cookieSecret") }}
+{{- $cookieSecret = index $existingCookie.data "cookieSecret" | b64dec }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-oidc-client
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+type: Opaque
+data:
+  client-secret-key: {{ $clientSecret | b64enc }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-oidc-cookie
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+type: Opaque
+data:
+  cookieSecret: {{ $cookieSecret | b64enc }}
+{{- if .Capabilities.APIVersions.Has "v1.edp.epam.com/v1" }}
+---
+apiVersion: v1.edp.epam.com/v1
+kind: KeycloakClient
+metadata:
+  name: {{ .Release.Name }}-oidc
+  annotations:
+    secret-hash: {{ $clientSecret | sha256sum }}
+spec:
+  realmRef:
+    name: keycloakrealm-cozy
+    kind: ClusterKeycloakRealm
+  secret: ${{ .Release.Name }}-oidc-client:client-secret-key
+  advancedProtocolMappers: true
+  name: {{ .Release.Namespace }}-{{ .Release.Name }}
+  clientId: {{ .Release.Namespace }}-{{ .Release.Name }}
+  directAccess: true
+  public: false
+  webUrl: "https://{{ .Values.host }}"
+  defaultClientScopes:
+    - groups
+  optionalClientScopes:
+    - offline_access
+  attributes:
+    post.logout.redirect.uris: "+"
+  redirectUris:
+    - "https://{{ .Values.host }}/oauth2/callback/*"
+{{- end }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Release.Name }}-gatekeeper
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-gatekeeper
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+spec:
+  type: ClusterIP
+  ports:
+    - name: ingress
+      port: 8000
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-gatekeeper
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+  annotations:
+    reloader.stakater.com/auto: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: open-webui-gatekeeper
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/name: open-webui-gatekeeper
+    spec:
+      serviceAccountName: {{ .Release.Name }}-gatekeeper
+      automountServiceAccountToken: false
+      containers:
+        - name: auth-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:v7.12.0
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=oidc
+            - --upstream={{ $upstream }}
+            - --http-address=0.0.0.0:8000
+            - --reverse-proxy=true
+            - --redirect-url=https://{{ .Values.host }}/oauth2/callback
+            - --oidc-issuer-url=https://keycloak.{{ $rootHost }}/realms/cozy
+            {{- if $keycloakInternalUrl }}
+            - --skip-oidc-discovery
+            - --login-url=https://keycloak.{{ $rootHost }}/realms/cozy/protocol/openid-connect/auth
+            - --redeem-url={{ $keycloakInternalUrl }}/protocol/openid-connect/token
+            - --oidc-jwks-url={{ $keycloakInternalUrl }}/protocol/openid-connect/certs
+            - --validate-url={{ $keycloakInternalUrl }}/protocol/openid-connect/userinfo
+            - --backend-logout-url={{ $keycloakInternalUrl }}/protocol/openid-connect/logout?id_token_hint={id_token}
+            {{- else }}
+            - --backend-logout-url=https://keycloak.{{ $rootHost }}/realms/cozy/protocol/openid-connect/logout?id_token_hint={id_token}
+            {{- end }}
+            - --whitelist-domain=keycloak.{{ $rootHost }}
+            - --email-domain=*
+            - --pass-access-token=true
+            - --pass-user-headers=true
+            - --set-xauthrequest=true
+            - --cookie-refresh=3m
+            - --cookie-name=kc-access
+            - --cookie-secure=true
+            # The cookie secret is supplied via the OAUTH2_PROXY_COOKIE_SECRET
+            # env var below; passing it as a flag would leak it into the process
+            # cmdline (ps / /proc/<pid>/cmdline).
+            - --skip-provider-button
+            - --scope=openid email profile groups offline_access
+            # Restrict to THIS tenant's Keycloak groups so users of other
+            # tenants cannot reach this instance.
+            - --allowed-group={{ .Release.Namespace }}-use
+            - --allowed-group={{ .Release.Namespace }}-admin
+            - --allowed-group={{ .Release.Namespace }}-super-admin
+            {{- if eq $oidcInsecureSkipVerify "true" }}
+            - --ssl-insecure-skip-verify=true
+            {{- end }}
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              value: {{ .Release.Namespace }}-{{ .Release.Name }}
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-oidc-client
+                  key: client-secret-key
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-oidc-cookie
+                  key: cookieSecret
+          ports:
+            - name: proxy
+              containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /ping
+              port: proxy
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: proxy
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-gatekeeper
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: open-webui-gatekeeper
+  annotations:
+    cert-manager.io/cluster-issuer: {{ $clusterIssuer }}
+    {{- if eq $solver "http01" }}
+    acme.cert-manager.io/http01-ingress-ingressclassname: {{ $ingressClass }}
+    {{- end }}
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 100m
+    nginx.ingress.kubernetes.io/proxy-buffers-number: "4"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: {{ $ingressClass }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ .Release.Name }}-gatekeeper
+                port:
+                  number: 8000
+  tls:
+    - hosts:
+        - {{ .Values.host | quote }}
+      secretName: {{ .Release.Name }}-gatekeeper-tls
+{{- end }}

@@ -2,7 +2,7 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: GitRepository
 metadata:
-  name: cozyllm
+  name: cozyllm-contrib
   namespace: cozy-public
 spec:
   interval: 1m0s
@@ -14,16 +14,16 @@ spec:
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: cozyllm
+  name: cozyllm-contrib
   namespace: cozy-system
 spec:
   interval: 5m
   targetNamespace: cozy-system
   chart:
     spec:
-      chart: ./packages/core/platform
+      chart: ./contrib/packages/core/platform
       sourceRef:
         kind: GitRepository
-        name: cozyllm
+        name: cozyllm-contrib
         namespace: cozy-public
       reconcileStrategy: Revision

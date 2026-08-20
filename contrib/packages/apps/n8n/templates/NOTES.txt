@@ -1,0 +1,25 @@
+n8n release {{ .Release.Name }} created.
+
+First start waits for sibling Postgres CR (3-5 min). Make sure
+spec.encryptionKey is set to a stable random string — leaving it empty
+makes n8n generate a fresh key on every pod restart, which invalidates
+every stored credential.
+
+Watch progress:
+
+  kubectl -n {{ .Release.Namespace }} get helmreleases | grep {{ .Release.Name }}
+  kubectl -n {{ .Release.Namespace }} get pod -l app.kubernetes.io/instance={{ .Release.Name }}-app
+
+Access once Ready:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ .Release.Name }}-app 5678:80
+  open http://localhost:5678
+
+Create the owner account on first visit.
+
+Common failures:
+  - Pod CrashLoopBackOff with database errors: sibling Postgres
+    reconciliation incomplete; check postgres-{{ .Release.Name }}-db HelmRelease.
+  - Stored credentials invalid after restart: spec.encryptionKey was empty
+    on the previous install; you cannot recover those credentials, only
+    re-enter them after setting a stable encryptionKey now.

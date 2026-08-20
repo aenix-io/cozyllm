@@ -1,0 +1,29 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: cozyllm
+  namespace: cozy-public
+spec:
+  interval: 1m0s
+  ref:
+    branch: main
+  timeout: 60s
+  url: https://github.com/aenix-io/cozyllm
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cozyllm
+  namespace: cozy-system
+spec:
+  interval: 5m
+  targetNamespace: cozy-system
+  chart:
+    spec:
+      chart: ./free/packages/core/platform
+      sourceRef:
+        kind: GitRepository
+        name: cozyllm
+        namespace: cozy-public
+      reconcileStrategy: Revision

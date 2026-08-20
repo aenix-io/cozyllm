@@ -2,7 +2,7 @@
 
 Scenarios that wire two or more cozyllm apps together. Each example assumes the catalog is already installed (see [install.md](install.md)). Replace `<ns>` with your tenant namespace throughout.
 
-Examples built around n8n and Open WebUI (chat stack, RAG over documents, support triage, image-generation pipelines) live in the [cozyllm-nonfree](https://github.com/aenix-io/cozyllm-nonfree) catalog for licensing reasons.
+Examples built around n8n and Open WebUI (chat stack, RAG over documents, support triage, image-generation pipelines) live in the [`contrib/`](../../contrib/) catalog for licensing reasons.
 
 ## 1. AI API stack from zero
 
@@ -27,7 +27,7 @@ curl -sS http://localhost:4000/v1/chat/completions \
   -d '{"model":"qwen-7b","messages":[{"role":"user","content":"hi"}]}'
 ```
 
-Any OpenAI-compatible client can now sit on top of the gateway — application code, Langflow, JupyterHub notebooks, or a chat UI such as Open WebUI from the [non-free catalog](https://github.com/aenix-io/cozyllm-nonfree).
+Any OpenAI-compatible client can now sit on top of the gateway — application code, Langflow, JupyterHub notebooks, or a chat UI such as Open WebUI from the [contrib catalog](../../contrib/).
 
 ## 2. Multi-user ML notebooks
 

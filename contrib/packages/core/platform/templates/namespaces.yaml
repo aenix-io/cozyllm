@@ -1,0 +1,14 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-n8n
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-open-webui

@@ -1,0 +1,28 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-contrib-n8n
+  namespace: cozy-public
+spec:
+  chart: ./contrib/packages/apps/n8n
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm-contrib
+    namespace: cozy-public
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-contrib-open-webui
+  namespace: cozy-public
+spec:
+  chart: ./contrib/packages/apps/open-webui
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm-contrib
+    namespace: cozy-public

@@ -1,0 +1,73 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for external access via Ingress. Leave empty to skip Ingress.
+host: ""
+
+## @param {string} [storageClass] - StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.
+storageClass: ""
+
+##
+## @section Database configuration
+##
+
+## @typedef {struct} Database - PostgreSQL configuration (managed via the cozystack `Postgres` sibling CR).
+## @field {quantity} size - Persistent Volume size for database storage.
+## @field {int} replicas - Number of database instances.
+## @field {string} user - Database user Open WebUI connects as.
+## @field {string} name - Database name Open WebUI stores users, conversations, and configuration in.
+## @field {string} [password] - Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.
+
+## @param {Database} database - PostgreSQL configuration.
+database:
+  size: 5Gi
+  replicas: 2
+  user: openwebui
+  name: openwebui
+  password: ""
+
+##
+## @section Vector DB (optional, for RAG over documents)
+##
+
+## @typedef {struct} Qdrant - Optional Qdrant vector store managed via the cozystack `Qdrant` sibling CR. When disabled, Open WebUI falls back to its embedded ChromaDB.
+## @field {bool} enabled - Provision a sibling Qdrant CR and point Open WebUI at it via VECTOR_DB + QDRANT_URI.
+## @field {quantity} size - Persistent Volume size for Qdrant storage.
+## @field {int} replicas - Number of Qdrant replicas.
+
+## @param {Qdrant} qdrant - Optional Qdrant vector store.
+qdrant:
+  enabled: false
+  size: 10Gi
+  replicas: 1
+
+##
+## @section LLM backend
+##
+
+## @param {string} [openaiBaseApiUrl] - OpenAI-compatible API endpoint. Point this at a litellm gateway (e.g. http://litellm-<name>.<namespace>.svc.cluster.local:4000/v1) to expose every model behind that gateway as a chat option in Open WebUI. Empty falls back to the public OpenAI API.
+openaiBaseApiUrl: ""
+
+## @param {string} [openaiApiKey] - Bearer token for the API endpoint above. For LiteLLM, this is the master key. Stored as a Kubernetes Secret.
+openaiApiKey: ""
+
+##
+## @section Resources
+##
+
+## @typedef {struct} Resources - CPU and memory for the Open WebUI container (each value sets both request and limit). Leave a field empty for the upstream chart default.
+## @field {string} [cpu] - CPU request and limit (e.g. 500m, 2).
+## @field {string} [memory] - Memory request and limit (e.g. 512Mi, 2Gi).
+
+## @param {Resources} [resources] - Container resources.
+resources:
+  cpu: ""
+  memory: ""
+
+##
+## @section Replication
+##
+
+## @param {int} replicaCount - Number of Open WebUI pods. Usually 1.
+replicaCount: 1

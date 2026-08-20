@@ -1,0 +1,102 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "host": {
+      "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+      "type": "string",
+      "default": ""
+    },
+    "storageClass": {
+      "description": "StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.",
+      "type": "string",
+      "default": ""
+    },
+    "database": {
+      "description": "PostgreSQL configuration.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "name",
+        "replicas",
+        "size",
+        "user"
+      ],
+      "properties": {
+        "name": {
+          "description": "Database name n8n stores its workflows, credentials, and executions in.",
+          "type": "string",
+          "default": "n8n"
+        },
+        "password": {
+          "description": "Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.",
+          "type": "string",
+          "default": ""
+        },
+        "replicas": {
+          "description": "Number of database instances.",
+          "type": "integer",
+          "default": 2
+        },
+        "size": {
+          "description": "Persistent Volume size for database storage.",
+          "default": "5Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        },
+        "user": {
+          "description": "Database user n8n connects as.",
+          "type": "string",
+          "default": "n8n"
+        }
+      }
+    },
+    "encryptionKey": {
+      "description": "Encryption key for n8n credentials at rest. If empty, n8n generates one on first start — but that value is lost on pod recreation, breaking every stored credential. Set this explicitly in production.",
+      "type": "string",
+      "default": ""
+    },
+    "resources": {
+      "description": "Container resources.",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "cpu": {
+          "description": "CPU request and limit (e.g. 500m, 2).",
+          "type": "string",
+          "default": ""
+        },
+        "memory": {
+          "description": "Memory request and limit (e.g. 512Mi, 2Gi).",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "replicaCount": {
+      "description": "Number of n8n main pods. Usually 1 — multi-replica requires queue mode with sibling Redis.",
+      "type": "integer",
+      "default": 1
+    },
+    "vendorLicense": {
+      "description": "Bring-your-own n8n license entitlement.",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "secretRef": {
+          "description": "Name of a Secret in the app namespace whose key N8N_LICENSE_ACTIVATION_KEY holds the operator's n8n activation key (Embed/Enterprise). Offering n8n as a managed service to third parties requires such an entitlement from n8n.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    }
+  }
+}

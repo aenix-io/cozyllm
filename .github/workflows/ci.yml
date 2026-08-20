@@ -35,56 +35,67 @@ jobs:
       - name: Validate each app chart
         run: |
           set -e
-          for chart in packages/apps/*/; do
-            name=$(basename "$chart")
-            echo "=== $name ==="
-            helm lint "$chart"
-            helm template "ci-$name" "$chart" > /dev/null
-            jq . "$chart/values.schema.json" > /dev/null
+          for section in free contrib; do
+            for chart in "$section"/packages/apps/*/; do
+              name=$(basename "$chart")
+              echo "=== $section/$name ==="
+              helm lint "$chart"
+              helm template "ci-$name" "$chart" > /dev/null
+              jq . "$chart/values.schema.json" > /dev/null
+            done
           done
 
       - name: Validate platform chart
         run: |
-          yq e '.' packages/core/platform/templates/cozyrds.yaml > /dev/null
-          yq e '.' packages/core/platform/templates/helmcharts.yaml > /dev/null
-          yq e '.' packages/core/platform/templates/helmrepositories.yaml > /dev/null
-          yq e '.' packages/core/platform/templates/namespaces.yaml > /dev/null
-          yq e '.' packages/core/platform/templates/helmreleases.yaml > /dev/null
-          helm lint packages/core/platform
-          helm template ci-platform packages/core/platform > /dev/null
-          helm template ci-platform packages/core/platform --set holmesgpt.enabled=true --set holmesgpt.openaiApiKey=sk-test > /dev/null
+          set -e
+          for section in free contrib; do
+            echo "=== $section platform ==="
+            for tmpl in cozyrds helmcharts helmrepositories namespaces; do
+              yq e '.' "$section/packages/core/platform/templates/$tmpl.yaml" > /dev/null
+            done
+            helm lint "$section/packages/core/platform"
+            helm template "ci-$section-platform" "$section/packages/core/platform" > /dev/null
+          done
+          # free-only: platform-level operator HelmReleases manifest + the opt-in
+          # HolmesGPT admin component (neither exists in the contrib platform).
+          yq e '.' free/packages/core/platform/templates/helmreleases.yaml > /dev/null
+          helm template ci-free-platform free/packages/core/platform --set holmesgpt.enabled=true --set holmesgpt.openaiApiKey=sk-test > /dev/null
 
       - name: Contract tests
         run: |
           set -e
           fail() { echo "CONTRACT FAIL: $1" >&2; exit 1; }
 
+          ############################################################
+          # free/ catalog — vLLM, LiteLLM, ComfyUI, JupyterHub, Langflow
+          ############################################################
+
           # vLLM must not ship the non-functional S3 model cache: no Bucket and
           # no unused S3 credentials wired into the container.
-          out=$(helm template ct packages/apps/vllm-inference)
+          out=$(helm template ct free/packages/apps/vllm-inference)
           if echo "$out" | grep -q "kind: Bucket"; then fail "vllm-inference renders a Bucket"; fi
           if echo "$out" | grep -qE "S3_ENDPOINT_URL|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY"; then fail "vllm-inference injects unused S3 env"; fi
 
           # vLLM must refuse to expose an unauthenticated endpoint: host without
           # apiKey fails, host with apiKey succeeds.
-          if helm template ct packages/apps/vllm-inference --set host=vllm.example.com > /dev/null 2>&1; then
+          if helm template ct free/packages/apps/vllm-inference --set host=vllm.example.com > /dev/null 2>&1; then
             fail "vllm-inference published an Ingress with host set but no apiKey"
           fi
-          helm template ct packages/apps/vllm-inference --set host=vllm.example.com --set apiKey=sk-test > /dev/null \
+          helm template ct free/packages/apps/vllm-inference --set host=vllm.example.com --set apiKey=sk-test > /dev/null \
             || fail "vllm-inference rejected a valid host + apiKey"
 
           # Gatekeeper guards must tolerate real booleans for every _cluster
           # flag they compare (no "incompatible types for comparison: bool and
           # string" panic) — covers oidc-enabled and oidc-insecure-skip-verify.
           for app in comfyui jupyterhub langflow; do
-            helm template ct "packages/apps/$app" --set host=x.example.com \
+            helm template ct "free/packages/apps/$app" --set host=x.example.com \
               --set _cluster.oidc-enabled=true --set _cluster.oidc-insecure-skip-verify=true > /dev/null \
               || fail "$app gatekeeper panics on a boolean _cluster flag"
           done
 
           # The langflow gatekeeper targets the upstream chart's static Service
           # name (langflow-ide does not release-prefix it); pin that contract.
-          lfup=$(helm template ct packages/apps/langflow --set host=x.example.com \
+          lfup=$(helm template ct free/packages/apps/langflow --set host=x.example.com \
             --set _cluster.oidc-enabled=true --set-string _cluster.root-host=h --set-string _cluster.expose-ingress=tenant-root \
             | yq 'select(.kind=="Deployment" and (.metadata.name|test("gatekeeper"))).spec.template.spec.containers[0].args[] | select(test("^--upstream"))' \
             | sed -E 's#.*//([^.]+)\..*#\1#')
@@ -92,22 +103,22 @@ jobs:
 
           # JupyterHub must tie identity to SSO (trusted-header authenticator)
           # when OIDC is on, and keep the upstream default otherwise.
-          helm template ct packages/apps/jupyterhub --set _cluster.oidc-enabled=true | grep -q "authenticator_class = _ProxyHeaderAuthenticator" \
+          helm template ct free/packages/apps/jupyterhub --set _cluster.oidc-enabled=true | grep -q "authenticator_class = _ProxyHeaderAuthenticator" \
             || fail "jupyterhub does not wire trusted-header auth under OIDC"
-          if helm template ct packages/apps/jupyterhub | grep -q "_ProxyHeaderAuthenticator"; then
+          if helm template ct free/packages/apps/jupyterhub | grep -q "_ProxyHeaderAuthenticator"; then
             fail "jupyterhub wires trusted-header auth even without OIDC"
           fi
 
           # vLLM treats only meta-llama as HF-gated; the public microsoft and
           # mistralai curated models must not be blocked for a missing token.
-          helm template ct packages/apps/vllm-inference --set model=microsoft/Phi-4 | grep -q "is gated on HuggingFace" && fail "vllm blocks the public microsoft model" || true
-          helm template ct packages/apps/vllm-inference --set "model=mistralai/Mistral-7B-Instruct-v0.3" | grep -q "is gated on HuggingFace" && fail "vllm blocks the public mistralai model" || true
-          helm template ct packages/apps/vllm-inference --set "model=meta-llama/Llama-3.1-8B-Instruct" | grep -q "is gated on HuggingFace" || fail "vllm no longer warns for the gated meta-llama model"
+          helm template ct free/packages/apps/vllm-inference --set model=microsoft/Phi-4 | grep -q "is gated on HuggingFace" && fail "vllm blocks the public microsoft model" || true
+          helm template ct free/packages/apps/vllm-inference --set "model=mistralai/Mistral-7B-Instruct-v0.3" | grep -q "is gated on HuggingFace" && fail "vllm blocks the public mistralai model" || true
+          helm template ct free/packages/apps/vllm-inference --set "model=meta-llama/Llama-3.1-8B-Instruct" | grep -q "is gated on HuggingFace" || fail "vllm no longer warns for the gated meta-llama model"
 
           # Gatekeepers must not pass the cookie secret as a CLI flag (it would
           # leak into the process cmdline); it comes from the env var instead.
           for app in comfyui jupyterhub langflow; do
-            g=$(helm template ct "packages/apps/$app" --set host=x.example.com --set _cluster.oidc-enabled=true)
+            g=$(helm template ct "free/packages/apps/$app" --set host=x.example.com --set _cluster.oidc-enabled=true)
             echo "$g" | grep -q -- '--cookie-secret=' && fail "$app passes the cookie secret as a CLI flag" || true
             echo "$g" | grep -q "OAUTH2_PROXY_COOKIE_SECRET" || fail "$app no longer provides the cookie secret env var"
           done
@@ -115,16 +126,70 @@ jobs:
           # The resources guard must tolerate resources being set to null (the
           # bare .Values.resources.cpu access would otherwise nil-pointer panic).
           for app in langflow jupyterhub; do
-            helm template ct "packages/apps/$app" --set resources=null > /dev/null \
+            helm template ct "free/packages/apps/$app" --set resources=null > /dev/null \
               || fail "$app nil-pointers when resources is null"
           done
 
           # HolmesGPT is an opt-in admin-only platform component: absent by
           # default, and when enabled it installs into cozy-holmesgpt as a plain
           # HelmRelease — never as a tenant-deployable ApplicationDefinition.
-          helm template ct packages/core/platform | grep -qi holmes && fail "holmesgpt renders while disabled" || true
-          he=$(helm template ct packages/core/platform --set holmesgpt.enabled=true --set holmesgpt.openaiApiKey=sk-test)
+          helm template ct free/packages/core/platform | grep -qi holmes && fail "holmesgpt renders while disabled" || true
+          he=$(helm template ct free/packages/core/platform --set holmesgpt.enabled=true --set holmesgpt.openaiApiKey=sk-test)
           echo "$he" | yq 'select(.kind=="HelmRelease" and .metadata.name=="holmesgpt").metadata.namespace' | grep -q cozy-holmesgpt || fail "holmesgpt HelmRelease not in cozy-holmesgpt when enabled"
           echo "$he" | yq 'select(.kind=="ApplicationDefinition").metadata.name' | grep -qi holmes && fail "holmesgpt must not be a tenant ApplicationDefinition" || true
+
+          ############################################################
+          # contrib/ catalog — n8n, Open WebUI
+          ############################################################
+
+          # Gatekeeper guards must tolerate real booleans for every _cluster
+          # flag they compare (no "incompatible types for comparison: bool and
+          # string" panic) — covers oidc-enabled and oidc-insecure-skip-verify.
+          helm template ct contrib/packages/apps/open-webui --set host=x.example.com \
+            --set _cluster.oidc-enabled=true --set _cluster.oidc-insecure-skip-verify=true > /dev/null \
+            || fail "open-webui gatekeeper panics on a boolean _cluster flag"
+
+          # The open-webui gatekeeper must target the Service the inner chart
+          # actually creates, for any release name (the upstream fullname helper
+          # collapses when the name already contains "open-webui"). Also asserts
+          # the KeycloakClient renders when the EDP API is present.
+          for rel in open-webui ow-prod; do
+            o=$(helm template "$rel" contrib/packages/apps/open-webui --set host=x.example.com \
+              --set _cluster.oidc-enabled=true --set-string _cluster.root-host=h \
+              --set-string _cluster.expose-ingress=tenant-root --api-versions "v1.edp.epam.com/v1")
+            fno=$(echo "$o" | yq 'select(.kind=="HelmRelease").spec.values.fullnameOverride')
+            up=$(echo "$o" | yq 'select(.kind=="Deployment" and (.metadata.name|test("gatekeeper"))).spec.template.spec.containers[0].args[] | select(test("^--upstream"))' | sed -E 's#.*//([^.]+)\..*#\1#')
+            { [ -n "$fno" ] && [ "$fno" = "$up" ]; } || fail "open-webui gatekeeper upstream ($up) != Service ($fno) for release $rel"
+            echo "$o" | grep -q "kind: KeycloakClient" || fail "open-webui KeycloakClient not rendered with the EDP API present"
+          done
+
+          # n8n keeps its own auth but must publish a TLS Ingress (cert-manager +
+          # ingressClass) and set its public URL when host is set.
+          n=$(helm template ct contrib/packages/apps/n8n --set host=n8n.example.com --set-string _cluster.expose-ingress=tenant-root)
+          echo "$n" | yq 'select(.kind=="HelmRelease").spec.values.ingress.tls[0].secretName' | grep -q n8n-tls || fail "n8n Ingress has no TLS secret"
+          echo "$n" | yq 'select(.kind=="HelmRelease").spec.values.ingress.className' | grep -q tenant-root || fail "n8n Ingress has no ingressClassName"
+          echo "$n" | grep -q WEBHOOK_URL || fail "n8n does not set WEBHOOK_URL when exposed"
+
+          # BYOL: vendorLicense.secretRef must inject the activation key from
+          # the operator's Secret; absent (or null) it must render nothing.
+          v=$(helm template ct contrib/packages/apps/n8n --set vendorLicense.secretRef=my-n8n-license)
+          echo "$v" | grep -q "N8N_LICENSE_ACTIVATION_KEY" || fail "n8n does not wire vendorLicense.secretRef"
+          echo "$v" | grep -q "my-n8n-license" || fail "n8n vendorLicense secret name not propagated"
+          helm template ct contrib/packages/apps/n8n | grep -q "N8N_LICENSE_ACTIVATION_KEY" && fail "n8n injects a license env without vendorLicense" || true
+          helm template ct contrib/packages/apps/n8n --set vendorLicense=null > /dev/null \
+            || fail "n8n nil-pointers when vendorLicense is null"
+
+          # Gatekeepers must not pass the cookie secret as a CLI flag (it would
+          # leak into the process cmdline); it comes from the env var instead.
+          g=$(helm template ct contrib/packages/apps/open-webui --set host=x.example.com --set _cluster.oidc-enabled=true)
+          echo "$g" | grep -q -- '--cookie-secret=' && fail "open-webui passes the cookie secret as a CLI flag" || true
+          echo "$g" | grep -q "OAUTH2_PROXY_COOKIE_SECRET" || fail "open-webui no longer provides the cookie secret env var"
+
+          # The resources guard must tolerate resources being set to null (the
+          # bare .Values.resources.cpu access would otherwise nil-pointer panic).
+          for app in open-webui n8n; do
+            helm template ct "contrib/packages/apps/$app" --set resources=null > /dev/null \
+              || fail "$app nil-pointers when resources is null"
+          done
 
           echo "contract tests passed"

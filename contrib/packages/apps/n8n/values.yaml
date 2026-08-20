@@ -1,0 +1,66 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for external access via Ingress. Leave empty to skip Ingress.
+host: ""
+
+## @param {string} [storageClass] - StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.
+storageClass: ""
+
+##
+## @section Database configuration
+##
+
+## @typedef {struct} Database - PostgreSQL configuration (managed via the cozystack `Postgres` sibling CR).
+## @field {quantity} size - Persistent Volume size for database storage.
+## @field {int} replicas - Number of database instances.
+## @field {string} user - Database user n8n connects as.
+## @field {string} name - Database name n8n stores its workflows, credentials, and executions in.
+## @field {string} [password] - Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.
+
+## @param {Database} database - PostgreSQL configuration.
+database:
+  size: 5Gi
+  replicas: 2
+  user: n8n
+  name: n8n
+  password: ""
+
+##
+## @section n8n
+##
+
+## @param {string} [encryptionKey] - Encryption key for n8n credentials at rest. If empty, n8n generates one on first start — but that value is lost on pod recreation, breaking every stored credential. Set this explicitly in production.
+encryptionKey: ""
+
+##
+## @section Resources
+##
+
+## @typedef {struct} Resources - CPU and memory for the n8n main container (each value sets both request and limit). Leave a field empty for the upstream chart default.
+## @field {string} [cpu] - CPU request and limit (e.g. 500m, 2).
+## @field {string} [memory] - Memory request and limit (e.g. 512Mi, 2Gi).
+
+## @param {Resources} [resources] - Container resources.
+resources:
+  cpu: ""
+  memory: ""
+
+##
+## @section Replication
+##
+
+## @param {int} replicaCount - Number of n8n main pods. Usually 1 — multi-replica requires queue mode with sibling Redis.
+replicaCount: 1
+
+##
+## @section Vendor license (BYOL)
+##
+
+## @typedef {struct} VendorLicense - Bring-your-own n8n license entitlement (BYOL).
+## @field {string} [secretRef] - Name of a Secret in the app namespace whose key N8N_LICENSE_ACTIVATION_KEY holds the operator's n8n activation key (Embed/Enterprise). Offering n8n as a managed service to third parties requires such an entitlement from n8n.
+
+## @param {VendorLicense} [vendorLicense] - Bring-your-own n8n license entitlement.
+vendorLicense:
+  secretRef: ""

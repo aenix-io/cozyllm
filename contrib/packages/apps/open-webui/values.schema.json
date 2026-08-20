@@ -1,0 +1,131 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "host": {
+      "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+      "type": "string",
+      "default": ""
+    },
+    "storageClass": {
+      "description": "StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.",
+      "type": "string",
+      "default": ""
+    },
+    "database": {
+      "description": "PostgreSQL configuration.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "name",
+        "replicas",
+        "size",
+        "user"
+      ],
+      "properties": {
+        "name": {
+          "description": "Database name Open WebUI stores users, conversations, and configuration in.",
+          "type": "string",
+          "default": "openwebui"
+        },
+        "password": {
+          "description": "Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.",
+          "type": "string",
+          "default": ""
+        },
+        "replicas": {
+          "description": "Number of database instances.",
+          "type": "integer",
+          "default": 2
+        },
+        "size": {
+          "description": "Persistent Volume size for database storage.",
+          "default": "5Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        },
+        "user": {
+          "description": "Database user Open WebUI connects as.",
+          "type": "string",
+          "default": "openwebui"
+        }
+      }
+    },
+    "qdrant": {
+      "description": "Optional Qdrant vector store.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "enabled",
+        "replicas",
+        "size"
+      ],
+      "properties": {
+        "enabled": {
+          "description": "Provision a sibling Qdrant CR and point Open WebUI at it via VECTOR_DB + QDRANT_URI.",
+          "type": "boolean",
+          "default": false
+        },
+        "replicas": {
+          "description": "Number of Qdrant replicas.",
+          "type": "integer",
+          "default": 1
+        },
+        "size": {
+          "description": "Persistent Volume size for Qdrant storage.",
+          "default": "10Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        }
+      }
+    },
+    "openaiBaseApiUrl": {
+      "description": "OpenAI-compatible API endpoint. Point this at a litellm gateway (e.g. http://litellm-\u003cname\u003e.<namespace>.svc.cluster.local:4000/v1) to expose every model behind that gateway as a chat option in Open WebUI. Empty falls back to the public OpenAI API.",
+      "type": "string",
+      "default": ""
+    },
+    "openaiApiKey": {
+      "description": "Bearer token for the API endpoint above. For LiteLLM, this is the master key. Stored as a Kubernetes Secret.",
+      "type": "string",
+      "default": ""
+    },
+    "resources": {
+      "description": "CPU and memory for the Open WebUI container (each value sets both request and limit). Leave a field empty for the upstream chart default.",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "cpu": {
+          "description": "CPU request and limit (e.g. 500m, 2).",
+          "type": "string",
+          "default": ""
+        },
+        "memory": {
+          "description": "Memory request and limit (e.g. 512Mi, 2Gi).",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "replicaCount": {
+      "description": "Number of Open WebUI pods. Usually 1.",
+      "type": "integer",
+      "default": 1
+    }
+  }
+}

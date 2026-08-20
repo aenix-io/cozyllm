@@ -1,0 +1,317 @@
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: n8n
+spec:
+  application:
+    kind: N8n
+    plural: n8ns
+    singular: n8n
+    openAPISchema: |
+      {
+        "title": "Chart Values",
+        "type": "object",
+        "properties": {
+          "host": {
+            "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+            "type": "string",
+            "default": ""
+          },
+          "storageClass": {
+            "description": "StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.",
+            "type": "string",
+            "default": ""
+          },
+          "database": {
+            "description": "PostgreSQL configuration.",
+            "type": "object",
+            "default": {},
+            "required": [
+              "name",
+              "replicas",
+              "size",
+              "user"
+            ],
+            "properties": {
+              "name": {
+                "description": "Database name n8n stores its workflows, credentials, and executions in.",
+                "type": "string",
+                "default": "n8n"
+              },
+              "password": {
+                "description": "Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.",
+                "type": "string",
+                "default": ""
+              },
+              "replicas": {
+                "description": "Number of database instances.",
+                "type": "integer",
+                "default": 2
+              },
+              "size": {
+                "description": "Persistent Volume size for database storage.",
+                "default": "5Gi",
+                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "x-kubernetes-int-or-string": true
+              },
+              "user": {
+                "description": "Database user n8n connects as.",
+                "type": "string",
+                "default": "n8n"
+              }
+            }
+          },
+          "encryptionKey": {
+            "description": "Encryption key for n8n credentials at rest. If empty, n8n generates one on first start — but that value is lost on pod recreation, breaking every stored credential. Set this explicitly in production.",
+            "type": "string",
+            "default": ""
+          },
+          "resources": {
+            "description": "CPU and memory for the n8n main container (each value sets both request and limit). Leave a field empty for the upstream chart default.",
+            "type": "object",
+            "default": {},
+            "properties": {
+              "cpu": {"type": "string", "title": "CPU", "default": "", "description": "CPU request and limit (e.g. 500m, 2)."},
+              "memory": {"type": "string", "title": "Memory", "default": "", "description": "Memory request and limit (e.g. 512Mi, 2Gi)."}
+            }
+          },
+          "replicaCount": {
+            "description": "Number of n8n main pods. Usually 1 — multi-replica requires queue mode with sibling Redis.",
+            "type": "integer",
+            "default": 1
+          },
+          "vendorLicense": {
+            "description": "Bring-your-own n8n license entitlement.",
+            "type": "object",
+            "default": {},
+            "properties": {
+              "secretRef": {
+                "description": "Name of a Secret in the app namespace whose key N8N_LICENSE_ACTIVATION_KEY holds the operator's n8n activation key (Embed/Enterprise). Offering n8n as a managed service to third parties requires such an entitlement from n8n.",
+                "type": "string",
+                "default": ""
+              }
+            }
+          }
+        }
+      }
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-contrib-n8n
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: n8n-
+  dashboard:
+    category: PaaS
+    singular: "n8n"
+    plural: "n8n Instances"
+    description: "Workflow automation platform with managed Postgres"
+    tags:
+      - workflow
+      - automation
+      - low-code
+      - integration
+    icon: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+CiAgPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIxNiIgZmlsbD0iIzFhMWEyZSIvPgogIDxwYXRoIGQ9Ik0gMjggNTAgUSAyOCAzMiA0NiAzMiBMIDU0IDMyIFEgNzIgMzIgNzIgNTAgUSA3MiA2OCA1NCA2OCBMIDQ2IDY4IFEgMjggNjggMjggNTAgWiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZWE0YjcxIiBzdHJva2Utd2lkdGg9IjMuNSIvPgogIDxjaXJjbGUgY3g9IjI4IiBjeT0iNTAiIHI9IjciIGZpbGw9IiNlYTRiNzEiLz4KICA8Y2lyY2xlIGN4PSI3MiIgY3k9IjUwIiByPSI3IiBmaWxsPSIjZWE0YjcxIi8+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSIzMiIgcj0iNSIgZmlsbD0iI2VhNGI3MSIvPgogIDxjaXJjbGUgY3g9IjUwIiBjeT0iNjgiIHI9IjUiIGZpbGw9IiNlYTRiNzEiLz4KPC9zdmc+Cg==
+    keysOrder:
+      - - apiVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - database
+      - - spec
+        - encryptionKey
+      - - spec
+        - host
+      - - spec
+        - storageClass
+      - - spec
+        - resources
+      - - spec
+        - replicaCount
+      - - spec
+        - vendorLicense
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: open-webui
+spec:
+  application:
+    kind: OpenWebUI
+    plural: openwebuis
+    singular: open-webui
+    openAPISchema: |-
+      {
+        "title": "Chart Values",
+        "type": "object",
+        "properties": {
+          "host": {
+            "description": "Hostname for external access via Ingress. Leave empty to skip Ingress.",
+            "type": "string",
+            "default": ""
+          },
+          "storageClass": {
+            "description": "StorageClass for the managed Postgres PVCs. Leave empty to use cluster default.",
+            "type": "string",
+            "default": ""
+          },
+          "database": {
+            "description": "PostgreSQL configuration.",
+            "type": "object",
+            "default": {},
+            "required": [
+              "name",
+              "replicas",
+              "size",
+              "user"
+            ],
+            "properties": {
+              "name": {
+                "description": "Database name Open WebUI stores users, conversations, and configuration in.",
+                "type": "string",
+                "default": "openwebui"
+              },
+              "password": {
+                "description": "Optional explicit password. When empty, the cozystack postgres chart generates and preserves one via lookup.",
+                "type": "string",
+                "default": ""
+              },
+              "replicas": {
+                "description": "Number of database instances.",
+                "type": "integer",
+                "default": 2
+              },
+              "size": {
+                "description": "Persistent Volume size for database storage.",
+                "default": "5Gi",
+                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "x-kubernetes-int-or-string": true
+              },
+              "user": {
+                "description": "Database user Open WebUI connects as.",
+                "type": "string",
+                "default": "openwebui"
+              }
+            }
+          },
+          "qdrant": {
+            "description": "Optional Qdrant vector store.",
+            "type": "object",
+            "default": {},
+            "required": [
+              "enabled",
+              "replicas",
+              "size"
+            ],
+            "properties": {
+              "enabled": {
+                "description": "Provision a sibling Qdrant CR and point Open WebUI at it via VECTOR_DB + QDRANT_URI.",
+                "type": "boolean",
+                "default": false
+              },
+              "replicas": {
+                "description": "Number of Qdrant replicas.",
+                "type": "integer",
+                "default": 1
+              },
+              "size": {
+                "description": "Persistent Volume size for Qdrant storage.",
+                "default": "10Gi",
+                "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+                "anyOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "string"
+                  }
+                ],
+                "x-kubernetes-int-or-string": true
+              }
+            }
+          },
+          "openaiBaseApiUrl": {
+            "description": "OpenAI-compatible API endpoint. Point this at a litellm gateway (e.g. http://litellm-\u003cname\u003e.<namespace>.svc.cluster.local:4000/v1) to expose every model behind that gateway as a chat option in Open WebUI. Empty falls back to the public OpenAI API.",
+            "type": "string",
+            "default": ""
+          },
+          "openaiApiKey": {
+            "description": "Bearer token for the API endpoint above. For LiteLLM, this is the master key. Stored as a Kubernetes Secret.",
+            "type": "string",
+            "default": ""
+          },
+          "resources": {
+            "description": "CPU and memory for the Open WebUI container (each value sets both request and limit). Leave a field empty for the upstream chart default.",
+            "type": "object",
+            "default": {},
+            "properties": {
+              "cpu": {"type": "string", "title": "CPU", "default": "", "description": "CPU request and limit (e.g. 500m, 2)."},
+              "memory": {"type": "string", "title": "Memory", "default": "", "description": "Memory request and limit (e.g. 512Mi, 2Gi)."}
+            }
+          },
+          "replicaCount": {
+            "description": "Number of Open WebUI pods. Usually 1.",
+            "type": "integer",
+            "default": 1
+          }
+        }
+      }
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-contrib-open-webui
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: open-webui-
+  dashboard:
+    category: PaaS
+    singular: "Open WebUI"
+    plural: "Open WebUI Instances"
+    description: "Chat UI over OpenAI-compatible APIs (vLLM, LiteLLM)"
+    tags:
+      - ai
+      - llm
+      - chat
+      - rag
+    icon: PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIiB3aWR0aD0iMTAwIiBoZWlnaHQ9IjEwMCI+CiAgPHJlY3Qgd2lkdGg9IjEwMCIgaGVpZ2h0PSIxMDAiIHJ4PSIxNiIgZmlsbD0iIzFhMWEyZSIvPgogIDxwYXRoIGQ9Ik0gMjAgMzAgUSAyMCAyMiAyOCAyMiBMIDcyIDIyIFEgODAgMjIgODAgMzAgTCA4MCA2MCBRIDgwIDY4IDcyIDY4IEwgNDIgNjggTCAzMCA3OCBMIDMyIDY4IEwgMjggNjggUSAyMCA2OCAyMCA2MCBaIiBmaWxsPSIjNjBhNWZhIi8+CiAgPGNpcmNsZSBjeD0iMzgiIGN5PSI0NSIgcj0iMy41IiBmaWxsPSIjMWExYTJlIi8+CiAgPGNpcmNsZSBjeD0iNTAiIGN5PSI0NSIgcj0iMy41IiBmaWxsPSIjMWExYTJlIi8+CiAgPGNpcmNsZSBjeD0iNjIiIGN5PSI0NSIgcj0iMy41IiBmaWxsPSIjMWExYTJlIi8+Cjwvc3ZnPgo=
+    keysOrder:
+      - - apiVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - openaiBaseApiUrl
+      - - spec
+        - openaiApiKey
+      - - spec
+        - database
+      - - spec
+        - host
+      - - spec
+        - storageClass
+      - - spec
+        - resources
+      - - spec
+        - replicaCount

@@ -1,0 +1,19 @@
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: n8n
+  namespace: external-n8n
+spec:
+  interval: 5m
+  type: oci
+  url: oci://8gears.container-registry.com/library
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: open-webui
+  namespace: external-open-webui
+spec:
+  interval: 5m
+  url: https://helm.openwebui.com/

@@ -1,0 +1,15 @@
+{{- if .Values.qdrant.enabled }}
+---
+apiVersion: apps.cozystack.io/v1alpha1
+kind: Qdrant
+metadata:
+  name: {{ .Release.Name }}-vector
+  namespace: {{ .Release.Namespace }}
+spec:
+  size: {{ .Values.qdrant.size }}
+  replicas: {{ .Values.qdrant.replicas }}
+  external: false
+  {{- with .Values.storageClass }}
+  storageClass: {{ . }}
+  {{- end }}
+{{- end }}

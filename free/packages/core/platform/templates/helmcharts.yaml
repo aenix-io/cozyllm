@@ -5,7 +5,7 @@ metadata:
   name: cozyllm-vllm-inference
   namespace: cozy-public
 spec:
-  chart: ./packages/apps/vllm-inference
+  chart: ./free/packages/apps/vllm-inference
   interval: 1m
   reconcileStrategy: Revision
   sourceRef:
@@ -19,7 +19,7 @@ metadata:
   name: cozyllm-litellm
   namespace: cozy-public
 spec:
-  chart: ./packages/apps/litellm
+  chart: ./free/packages/apps/litellm
   interval: 1m
   reconcileStrategy: Revision
   sourceRef:
@@ -33,7 +33,7 @@ metadata:
   name: cozyllm-comfyui
   namespace: cozy-public
 spec:
-  chart: ./packages/apps/comfyui
+  chart: ./free/packages/apps/comfyui
   interval: 1m
   reconcileStrategy: Revision
   sourceRef:
@@ -47,7 +47,7 @@ metadata:
   name: cozyllm-jupyterhub
   namespace: cozy-public
 spec:
-  chart: ./packages/apps/jupyterhub
+  chart: ./free/packages/apps/jupyterhub
   interval: 1m
   reconcileStrategy: Revision
   sourceRef:
@@ -61,7 +61,7 @@ metadata:
   name: cozyllm-langflow
   namespace: cozy-public
 spec:
-  chart: ./packages/apps/langflow
+  chart: ./free/packages/apps/langflow
   interval: 1m
   reconcileStrategy: Revision
   sourceRef:

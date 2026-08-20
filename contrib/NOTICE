@@ -1,0 +1,18 @@
+CozyLLM Non-Free Catalog
+Copyright 2026 The CozyLLM Authors
+
+The code in this repository (Helm charts, templates, platform manifests, documentation, and tooling) is licensed under the Apache License, Version 2.0 (see the LICENSE file).
+
+This repository does not store or redistribute the applications it deploys. The application payloads (container images and upstream Helm charts) are retrieved at deploy time from their vendors' own sources and retain their own upstream licenses. Deploying and operating an application means accepting that application's upstream license terms; nothing in this repository grants any rights to the upstream products.
+
+Product names and logos referenced in this repository are used for identification purposes only and are trademarks of their respective owners.
+
+Upstream licenses of the applications this catalog deploys:
+
+| Application | Upstream license |
+| --- | --- |
+| n8n | Sustainable Use License (fair-code, not OSI-approved open source). Source files under `.ee` paths are additionally covered by the n8n Enterprise License; enterprise features are inactive without a commercial license key from n8n. Offering n8n as a managed service to third parties requires an Embed/Enterprise entitlement from n8n. |
+| Open WebUI | Open WebUI License (BSD-3-derived, with a branding-preservation clause for deployments over 50 users absent an enterprise license). |
+| Qdrant (optional Open WebUI dependency) | Apache-2.0 |
+
+Consult each upstream project for the authoritative and current license text before offering these applications to third parties.

@@ -19,7 +19,7 @@
       "customType": "regex",
       "description": "Pick up upstream Helm chart pins inside Flux HelmRelease wrappers, when annotated with a renovate hint comment immediately above the version line.",
       "fileMatch": [
-        "^packages/apps/.*/templates/.*\\.yaml$"
+        "^contrib/packages/apps/.*/templates/.*\\.yaml$"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z]+) depName=(?<depName>[^\\s]+)(?: registryUrl=(?<registryUrl>[^\\s]+))?\\s+version:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
@@ -29,7 +29,7 @@
       "customType": "regex",
       "description": "Pick up appVersion pins in Chart.yaml that track an upstream container image, when annotated with a renovate hint comment.",
       "fileMatch": [
-        "^packages/apps/.*/Chart\\.yaml$"
+        "^contrib/packages/apps/.*/Chart\\.yaml$"
       ],
       "matchStrings": [
         "# renovate: datasource=(?<datasource>[a-z]+) depName=(?<depName>[^\\s]+)(?: registryUrl=(?<registryUrl>[^\\s]+))?\\s+appVersion:\\s*[\"']?(?<currentValue>[^\"'\\s]+)[\"']?"
@@ -40,7 +40,7 @@
     {
       "description": "All upstream Helm chart bumps grouped per app and labelled as a wrapper bump — easier to review one chart at a time.",
       "matchManagers": ["custom.regex"],
-      "matchFileNames": ["packages/apps/*/templates/*.yaml"],
+      "matchFileNames": ["contrib/packages/apps/*/templates/*.yaml"],
       "groupName": "upstream chart wrapper bumps"
     },
     {
