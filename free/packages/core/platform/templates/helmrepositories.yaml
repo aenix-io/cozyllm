@@ -18,3 +18,15 @@ metadata:
 spec:
   interval: 5m
   url: https://langflow-ai.github.io/langflow-helm-charts/
+---
+# oauth2-proxy — OIDC gatekeeper deployed in front of the ComputePlane workload
+# of every gated app (jupyterhub / langflow / comfyui) when computePlane is
+# enabled; unused (the gatekeeper is a bundled Deployment) otherwise.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: oauth2-proxy
+  namespace: external-oauth2-proxy
+spec:
+  interval: 5m
+  url: https://oauth2-proxy.github.io/manifests

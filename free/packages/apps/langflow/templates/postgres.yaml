@@ -1,3 +1,7 @@
+{{- if not .Values.computePlane }}
+{{- /* Co-located mode: Pattern C managed Postgres. In ComputePlane mode the
+   bundled CNPG Cluster is rendered by langflow.yaml instead (the generated
+   password must be shared with the workload values in a single template). */}}
 ---
 apiVersion: apps.cozystack.io/v1alpha1
 kind: Postgres
@@ -21,3 +25,4 @@ spec:
       roles:
         admin:
           - {{ .Values.database.user }}
+{{- end }}
