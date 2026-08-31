@@ -1,0 +1,49 @@
+{{- /*
+  ComputePlane mode (computePlane: true). ComfyUI runs untrusted user-authored
+  workflow graphs (arbitrary custom nodes), so the whole workload is routed onto
+  the tenant's ComputePlane. ComfyUI has no database — only a PVC for
+  models/outputs — so there is nothing to keep on management; only the OIDC
+  gatekeeper's client registration stays there (see gatekeeper.yaml).
+
+  The workload (Deployment/Service/PVC) is an in-repo chart under
+  packages/system/comfyui-workload, referenced through the cozyllm
+  GitRepository (HelmChart cozyllm-comfyui-workload) so the HelmRelease can
+  carry the kubeConfig. In co-located mode the same manifests are rendered
+  directly by this chart (templates/deployment.yaml & co) and this file renders
+  nothing.
+*/}}
+{{- if .Values.computePlane }}
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}-app
+spec:
+  interval: 5m
+  kubeConfig:
+    secretRef:
+      name: computeplane-cluster-admin-kubeconfig
+      key: super-admin.svc
+  targetNamespace: {{ .Release.Namespace }}
+  storageNamespace: {{ .Release.Namespace }}
+  install:
+    createNamespace: true
+  chartRef:
+    kind: HelmChart
+    name: cozyllm-comfyui-workload
+    namespace: cozy-public
+  values:
+    # Fixed Service name so the gatekeeper upstream (gatekeeper.yaml) can target it.
+    fullnameOverride: {{ .Release.Name }}-comfyui
+    replicaCount: {{ .Values.replicaCount }}
+    {{- with .Values.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+    storage:
+      size: {{ .Values.storage.size }}
+    gpuEnabled: {{ .Values.gpuEnabled }}
+    gpuCount: {{ .Values.gpuCount }}
+    {{- with .Values.resources }}
+    resources:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+{{- end }}

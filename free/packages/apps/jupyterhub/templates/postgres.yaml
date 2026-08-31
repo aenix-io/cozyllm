@@ -1,3 +1,57 @@
+{{- if .Values.computePlane }}
+{{- /*
+  ComputePlane mode: the bundled Postgres is a private dependency deployed as a
+  raw CNPG Cluster on the MANAGEMENT cluster, hidden from the user. The workload
+  (on the ComputePlane) reaches it by DNS and gets the password via Flux
+  valuesFrom (the management helm-controller reads this Secret and injects it),
+  so a plain secretKeyRef is not needed. The password is generated once (lookup
+  existing -> reuse, else randAlphaNum) so it survives reconciles.
+*/}}
+{{- $db := printf "postgres-%s-db" .Release.Name }}
+{{- $secret := printf "%s-app" $db }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secret }}
+{{- $pw := .Values.database.password }}
+{{- if not $pw }}
+  {{- if and $existing $existing.data (hasKey $existing.data "password") }}
+    {{- $pw = index $existing.data "password" | b64dec }}
+  {{- else }}
+    {{- $pw = randAlphaNum 24 }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secret }}
+  namespace: {{ .Release.Namespace }}
+type: kubernetes.io/basic-auth
+stringData:
+  username: {{ .Values.database.user | quote }}
+  password: {{ $pw | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $db }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  instances: {{ .Values.database.replicas }}
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  storage:
+    size: {{ .Values.database.size }}
+    {{- with .Values.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  bootstrap:
+    initdb:
+      database: {{ .Values.database.name }}
+      owner: {{ .Values.database.user }}
+      secret:
+        name: {{ $secret }}
+  inheritedMetadata:
+    labels:
+      policy.cozystack.io/allow-to-apiserver: "true"
+{{- else }}
 ---
 apiVersion: apps.cozystack.io/v1alpha1
 kind: Postgres
@@ -21,3 +75,4 @@ spec:
       roles:
         admin:
           - {{ .Values.database.user }}
+{{- end }}

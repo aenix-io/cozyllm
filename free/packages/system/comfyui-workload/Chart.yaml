@@ -1,0 +1,7 @@
+apiVersion: v2
+name: comfyui-workload
+description: ComfyUI workload (Deployment/Service/PVC) deployed onto a ComputePlane
+type: application
+version: 0.1.0
+# ai-dock/comfyui release tag — keep in sync with packages/apps/comfyui
+appVersion: "0.2.7"

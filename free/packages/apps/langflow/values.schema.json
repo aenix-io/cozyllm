@@ -12,6 +12,11 @@
       "type": "string",
       "default": ""
     },
+    "computePlane": {
+      "description": "Deploy the workload onto the tenant's ComputePlane (requires the computeplane tenant module, cozystack \u003e= the release shipping it). When false, the app runs co-located in the tenant namespace on the management cluster.",
+      "type": "boolean",
+      "default": false
+    },
     "database": {
       "description": "PostgreSQL configuration.",
       "type": "object",
@@ -60,7 +65,7 @@
       }
     },
     "resources": {
-      "description": "CPU and memory for the Langflow backend container (each value sets both request and limit). Leave a field empty for the upstream chart default.",
+      "description": "Container resources.",
       "type": "object",
       "default": {},
       "properties": {

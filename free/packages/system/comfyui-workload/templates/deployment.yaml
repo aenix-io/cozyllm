@@ -1,4 +1,3 @@
-{{- if not .Values.computePlane }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,4 +63,3 @@ spec:
         - name: data
           persistentVolumeClaim:
             claimName: {{ include "comfyui.fullname" . }}-data
-{{- end }}

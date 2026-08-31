@@ -5,6 +5,19 @@ Ingress is published ONLY when a host is set AND the cluster has OIDC
 enabled, and every request is authenticated by an oauth2-proxy against the
 platform Keycloak realm, admitting only this tenant's groups. With OIDC
 disabled nothing is published — reach the UI via `kubectl port-forward`.
+
+With computePlane enabled the oauth2-proxy runs INSIDE the tenant's
+ComputePlane, right next to ComfyUI, so the workload has no other ingress
+and cannot be reached — even from within the ComputePlane — without
+authenticating through the platform Keycloak. Only the KeycloakClient (which
+needs the management Keycloak operator) and the generated client/cookie
+secrets stay on the management cluster; the secrets are injected into the
+compute-plane oauth2-proxy via Flux valuesFrom (read by the management
+helm-controller that reconciles the HelmRelease). The oauth2-proxy upstream is
+the ComfyUI Service, then same-cluster on the ComputePlane; oauth2-proxy
+reaches Keycloak on management by DNS (inner->outer). The app host is brought
+back to the tenant entry point by a per-app management Ingress that proxies to
+the ComputePlane ingress-nginx (ssl-passthrough).
 */ -}}
 {{- $cluster := .Values._cluster | default dict }}
 {{- $rootHost := index $cluster "root-host" }}
@@ -15,7 +28,13 @@ disabled nothing is published — reach the UI via `kubectl port-forward`.
 {{- $clusterIssuer := index $cluster "issuer-name" | default "letsencrypt-prod" }}
 {{- $ingressClass := index $cluster "expose-ingress" | default "tenant-root" }}
 {{- if and .Values.host (eq $oidcEnabled "true") }}
+{{- $clientId := printf "%s-%s" .Release.Namespace .Release.Name }}
 {{- $upstream := printf "http://%s.%s.svc:8188" (include "comfyui.fullname" .) .Release.Namespace }}
+{{- if .Values.computePlane }}
+{{- /* the ComputePlane workload chart pins its Service name via fullnameOverride
+       (see templates/comfyui.yaml), independent of the fullname heuristic */}}
+{{- $upstream = printf "http://%s-comfyui.%s.svc:8188" .Release.Name .Release.Namespace }}
+{{- end }}
 {{- $existingClient := lookup "v1" "Secret" .Release.Namespace (printf "%s-oidc-client" .Release.Name) }}
 {{- $clientSecret := randAlphaNum 32 }}
 {{- if and $existingClient (hasKey ($existingClient.data | default dict) "client-secret-key") }}
@@ -63,7 +82,7 @@ spec:
   secret: ${{ .Release.Name }}-oidc-client:client-secret-key
   advancedProtocolMappers: true
   name: {{ .Release.Namespace }}-{{ .Release.Name }}
-  clientId: {{ .Release.Namespace }}-{{ .Release.Name }}
+  clientId: {{ $clientId }}
   directAccess: true
   public: false
   webUrl: "https://{{ .Values.host }}"
@@ -76,6 +95,131 @@ spec:
   redirectUris:
     - "https://{{ .Values.host }}/oauth2/callback/*"
 {{- end }}
+{{- if .Values.computePlane }}
+---
+# ComputePlane: oauth2-proxy in front of the workload. The client/cookie secrets
+# are injected from the management secrets above by the management helm-controller.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}-gatekeeper
+spec:
+  interval: 5m
+  kubeConfig:
+    secretRef:
+      name: computeplane-cluster-admin-kubeconfig
+      key: super-admin.svc
+  targetNamespace: {{ .Release.Namespace }}
+  storageNamespace: {{ .Release.Namespace }}
+  install:
+    createNamespace: true
+  chart:
+    spec:
+      chart: oauth2-proxy
+      version: 10.7.0
+      sourceRef:
+        kind: HelmRepository
+        name: oauth2-proxy
+        namespace: external-oauth2-proxy
+  values:
+    # Legacy flag mode so the upstream/OIDC options below apply as plain args.
+    alphaConfig:
+      enabled: false
+    replicaCount: 1
+    config:
+      clientID: {{ $clientId | quote }}
+      # clientSecret and cookieSecret are supplied via valuesFrom (see below).
+    service:
+      portNumber: 8000
+    ingress:
+      enabled: true
+      className: nginx
+      path: /
+      pathType: Prefix
+      hosts:
+        - {{ .Values.host }}
+      annotations:
+        cert-manager.io/cluster-issuer: {{ $clusterIssuer }}
+        {{- if eq $solver "http01" }}
+        acme.cert-manager.io/http01-ingress-ingressclassname: nginx
+        {{- end }}
+        nginx.ingress.kubernetes.io/proxy-body-size: "0"
+        nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+        nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      tls:
+        - hosts:
+            - {{ .Values.host }}
+          secretName: {{ .Release.Name }}-gatekeeper-tls
+    extraArgs:
+      - --provider=oidc
+      - --upstream={{ $upstream }}
+      - --reverse-proxy=true
+      - --redirect-url=https://{{ .Values.host }}/oauth2/callback
+      - --oidc-issuer-url=https://keycloak.{{ $rootHost }}/realms/cozy
+      {{- if $keycloakInternalUrl }}
+      - --skip-oidc-discovery=true
+      - --login-url=https://keycloak.{{ $rootHost }}/realms/cozy/protocol/openid-connect/auth
+      - --redeem-url={{ $keycloakInternalUrl }}/protocol/openid-connect/token
+      - --oidc-jwks-url={{ $keycloakInternalUrl }}/protocol/openid-connect/certs
+      - --validate-url={{ $keycloakInternalUrl }}/protocol/openid-connect/userinfo
+      - --backend-logout-url={{ $keycloakInternalUrl }}/protocol/openid-connect/logout?id_token_hint={id_token}
+      {{- else }}
+      - --backend-logout-url=https://keycloak.{{ $rootHost }}/realms/cozy/protocol/openid-connect/logout?id_token_hint={id_token}
+      {{- end }}
+      - --whitelist-domain=keycloak.{{ $rootHost }}
+      - --email-domain=*
+      - --pass-access-token=true
+      - --pass-user-headers=true
+      - --set-xauthrequest=true
+      - --cookie-refresh=3m
+      - --cookie-name=kc-access
+      - --cookie-secure=true
+      - --skip-provider-button=true
+      - --scope=openid email profile groups offline_access
+      # Restrict to THIS tenant's Keycloak groups so users of other tenants
+      # cannot reach this instance.
+      - --allowed-group={{ .Release.Namespace }}-use
+      - --allowed-group={{ .Release.Namespace }}-admin
+      - --allowed-group={{ .Release.Namespace }}-super-admin
+      {{- if eq $oidcInsecureSkipVerify "true" }}
+      - --ssl-insecure-skip-verify=true
+      {{- end }}
+  valuesFrom:
+    - kind: Secret
+      name: {{ .Release.Name }}-oidc-client
+      valuesKey: client-secret-key
+      targetPath: config.clientSecret
+    - kind: Secret
+      name: {{ .Release.Name }}-oidc-cookie
+      valuesKey: cookieSecret
+      targetPath: config.cookieSecret
+---
+# Per-app exposure: bring the app host back to the tenant entry point by proxying
+# to the ComputePlane ingress-nginx (ssl-passthrough) — no management LoadBalancer.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-computeplane
+  labels:
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/name: comfyui-gatekeeper
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-passthrough: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+spec:
+  ingressClassName: {{ $ingressClass }}
+  rules:
+    - host: {{ .Values.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: computeplane-cluster-ingress-nginx
+                port:
+                  number: 443
+{{- else }}
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -251,4 +395,5 @@ spec:
     - hosts:
         - {{ .Values.host | quote }}
       secretName: {{ .Release.Name }}-gatekeeper-tls
+{{- end }}
 {{- end }}
