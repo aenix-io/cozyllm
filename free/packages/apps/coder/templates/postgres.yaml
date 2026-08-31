@@ -1,0 +1,52 @@
+{{- /*
+  Coder's database: workspace definitions, templates, users, audit log and the
+  provisioner state. A private dependency the user never addresses, so it is a
+  raw CNPG Cluster rather than a first-class Postgres app, matching jupyterhub.
+
+  It stays on the management cluster while Coder itself runs on the
+  ComputePlane. That is the point of the split: workspaces are containers the
+  tenant has a root shell in, and the database holding every other tenant
+  user's session must not be reachable from inside one.
+
+  Losing it loses every workspace definition and template. The workspaces'
+  own persistent volumes survive, but nothing knows how to reattach them, so
+  this is replicated by default and carries a keep policy.
+*/}}
+{{- $db := printf "postgres-%s-db" .Release.Name }}
+{{- $secret := printf "%s-app" $db }}
+{{- $pw := include "coder.dbPassword" . }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secret }}
+  namespace: {{ .Release.Namespace }}
+type: kubernetes.io/basic-auth
+stringData:
+  username: coder
+  password: {{ $pw | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $db }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: {{ .Values.database.replicas }}
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  storage:
+    size: {{ .Values.database.size }}
+    {{- with .Values.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  bootstrap:
+    initdb:
+      database: coder
+      owner: coder
+      secret:
+        name: {{ $secret }}
+  inheritedMetadata:
+    labels:
+      policy.cozystack.io/allow-to-apiserver: "true"
