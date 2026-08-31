@@ -33,3 +33,80 @@ metadata:
   labels:
     cozystack.io/system: "true"
   name: external-oauth2-proxy
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-lakehouse
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-trino
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-sparkcluster
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-airflow
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-mlflow
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cozy-coder
+  labels:
+    cozystack.io/managed: "true"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-nessie
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-trino
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-spark-operator
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-airflow
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    cozystack.io/system: "true"
+  name: external-coder

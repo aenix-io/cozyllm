@@ -727,3 +727,443 @@ spec:
         - replicaCount
       - - spec
         - computePlane
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: lakehouse
+spec:
+  application:
+    kind: Lakehouse
+    plural: lakehouses
+    singular: lakehouse
+    openAPISchema: |
+      {"title":"Chart Values","type":"object","properties":{"catalog":{"description":"Catalog implementation. Hive Metastore is deliberately absent: it has no maintained upstream Helm chart, so supporting it means owning a Deployment, and that is deferred until a consumer needs the Hive protocol.","type":"string","default":"Nessie","enum":["Nessie"]},"database":{"description":"PostgreSQL configuration for the catalog.","type":"object","default":{},"required":["replicas","size"],"properties":{"password":{"description":"Optional explicit password. When empty, one is generated and preserved across reconciles.","type":"string","default":""},"replicas":{"description":"Number of database instances.","type":"integer","default":2},"size":{"description":"Persistent Volume size for catalog metadata.","default":"20Gi","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"host":{"description":"Hostname for external access to the catalog API via Ingress. Leave empty to keep the catalog reachable only inside the cluster, which is the usual choice: engines connect over cluster DNS and nothing outside needs to speak the catalog protocol.","type":"string","default":""},"maintenance":{"description":"Unreferenced-file garbage collection.","type":"object","default":{},"required":["enabled","retainSnapshotDays","schedule"],"properties":{"enabled":{"description":"Run the GC CronJob. Off by default: the invocation has not been validated against a running catalog, and a job that deletes data files is the wrong place to guess.","type":"boolean","default":false},"retainSnapshotDays":{"description":"Age below which content stays live. Data files unreferenced for longer become collectable, and time travel further back than this stops working.","type":"integer","default":7},"schedule":{"description":"Cron schedule for the GC run.","type":"string","default":"0 3 * * *"}}},"replicaCount":{"description":"Number of catalog replicas. The service is stateless \u2014 all state is in Postgres \u2014 so this scales freely.","type":"integer","default":2},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the catalog pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the catalog pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Default sizing preset. Requests are derived from these limits through the platform's allocation ratios (cpu-allocation-ratio and friends from the cozystack config), so a preset states what the pod may use, not what it reserves. The catalog is a thin service over a database and is not where analytics load lands, so a small preset is right; the database behind it is sized separately.","type":"string","default":"t1.small","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]},"storage":{"description":"Object storage for table data.","type":"object","default":{},"required":["readOnlyUser"],"properties":{"readOnlyUser":{"description":"Also issue a read-only credential alongside the read-write one, for engines that only query.","type":"boolean","default":true},"storagePool":{"description":"Selects a specific BucketClass by storage pool name. Leave empty for the default.","type":"string","default":""}}},"storageClass":{"description":"StorageClass for the catalog's Postgres PVCs. Leave empty to use the cluster default.","type":"string","default":""}}}
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-lakehouse
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: lakehouse-
+  dashboard:
+    category: PaaS
+    singular: "Lakehouse"
+    plural: "Lakehouses"
+    description: "Iceberg warehouse: object storage plus the catalog that turns it into tables"
+    tags:
+      - data
+      - lakehouse
+      - iceberg
+      - storage
+      - catalog
+    icon: PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPCFET0NUWVBFIHN2ZyBQVUJMSUMgIi0vL1czQy8vRFREIFNWRyAxLjEvL0VOIiAiaHR0cDovL3d3dy53My5vcmcvR3JhcGhpY3MvU1ZHLzEuMS9EVEQvc3ZnMTEuZHRkIj4KPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZlcnNpb249IjEuMSIgd2lkdGg9IjgwMHB4IiBoZWlnaHQ9IjIxOHB4IiBzdHlsZT0ic2hhcGUtcmVuZGVyaW5nOmdlb21ldHJpY1ByZWNpc2lvbjsgdGV4dC1yZW5kZXJpbmc6Z2VvbWV0cmljUHJlY2lzaW9uOyBpbWFnZS1yZW5kZXJpbmc6b3B0aW1pemVRdWFsaXR5OyBmaWxsLXJ1bGU6ZXZlbm9kZDsgY2xpcC1ydWxlOmV2ZW5vZGQiIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIj4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MC45NzMiIGZpbGw9IiNiOGUxZjMiIGQ9Ik0gNzY0LjUsNjMuNSBDIDc1MC44MzMsNjMuNSA3MzcuMTY3LDYzLjUgNzIzLjUsNjMuNUMgNzIzLjUsNjEuNSA3MjMuNSw1OS41IDcyMy41LDU3LjVDIDcyOC42MDcsNTcuODM0NSA3MzIuOTQsNTcuNTAxMiA3MzYuNSw1Ni41QyA3MzQuMDczLDU0LjQ0MjQgNzMxLjQwNyw1Mi42MDkxIDcyOC41LDUxQyA3MDYuMTY3LDUwLjMzMzMgNjgzLjgzMyw1MC4zMzMzIDY2MS41LDUxQyA2NTcuNzY0LDUyLjQwOTggNjU0LjA5OCw1My45MDk4IDY1MC41LDU1LjVDIDY0Ny4wNTMsNTcuMDU0MSA2NDUuMDUzLDU5LjcyMDggNjQ0LjUsNjMuNUMgNjU5LjgzMyw2My41IDY3NS4xNjcsNjMuNSA2OTAuNSw2My41QyA2OTAuMTczLDczLjY4MDYgNjkwLjUwNiw4My42ODA2IDY5MS41LDkzLjVDIDY5MS41LDk3LjgzMzMgNjkxLjUsMTAyLjE2NyA2OTEuNSwxMDYuNUMgNjkxLjE2NywxMDYuNSA2OTAuODMzLDEwNi41IDY5MC41LDEwNi41QyA2NzIuMDMyLDk4Ljc2NTEgNjUzLjY5OSw5MC43NjUxIDYzNS41LDgyLjVDIDY0OC4wMTYsNzYuNDA5NSA2NjAuNjgzLDcwLjU3NjIgNjczLjUsNjVDIDY2My41MDYsNjQuNTAwMiA2NTMuNTA2LDY0LjMzMzUgNjQzLjUsNjQuNUMgNjM1LjAxNiw2My41MDcgNjI2LjM0OSw2My4xNzM2IDYxNy41LDYzLjVDIDYzNC4yNjksMzYuNTIwMiA2NTguNzY5LDIyLjg1MzUgNjkxLDIyLjVDIDcyMy4yMzEsMjIuODUzNSA3NDcuNzMxLDM2LjUyMDIgNzY0LjUsNjMuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eToxIiBmaWxsPSIjZjVmYWZkIiBkPSJNIDczNi41LDU2LjUgQyA3MDcuNjYyLDU2LjgzMTMgNjc4Ljk5NSw1Ni40OTggNjUwLjUsNTUuNUMgNjU0LjA5OCw1My45MDk4IDY1Ny43NjQsNTIuNDA5OCA2NjEuNSw1MUMgNjgzLjgzMyw1MC4zMzMzIDcwNi4xNjcsNTAuMzMzMyA3MjguNSw1MUMgNzMxLjQwNyw1Mi42MDkxIDczNC4wNzMsNTQuNDQyNCA3MzYuNSw1Ni41IFoiLz48L2c+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjEiIGZpbGw9IiNlYWY3ZmQiIGQ9Ik0gNjUwLjUsNTUuNSBDIDY3OC45OTUsNTYuNDk4IDcwNy42NjIsNTYuODMxMyA3MzYuNSw1Ni41QyA3MzIuOTQsNTcuNTAxMiA3MjguNjA3LDU3LjgzNDUgNzIzLjUsNTcuNUMgNzIzLjUsNTkuNSA3MjMuNSw2MS41IDcyMy41LDYzLjVDIDcxMi41LDYzLjUgNzAxLjUsNjMuNSA2OTAuNSw2My41QyA2NzUuMTY3LDYzLjUgNjU5LjgzMyw2My41IDY0NC41LDYzLjVDIDY0NS4wNTMsNTkuNzIwOCA2NDcuMDUzLDU3LjA1NDEgNjUwLjUsNTUuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eToxIiBmaWxsPSIjNGI5NGNiIiBkPSJNIDYxNy41LDYzLjUgQyA2MjYuMzQ5LDYzLjE3MzYgNjM1LjAxNiw2My41MDcgNjQzLjUsNjQuNUMgNjQzLjUsNjUuMTY2NyA2NDMuMTY3LDY1LjUgNjQyLjUsNjUuNUMgNjM0LjE2Nyw2NC44MzMzIDYyNS44MzMsNjQuMTY2NyA2MTcuNSw2My41IFoiLz48L2c+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjAuOTQzIiBmaWxsPSIjMjc3YWJlIiBkPSJNIDkzLjUsNjQuNSBDIDEwOS4yNjIsNjIuMTQxMiAxMjIuNDI5LDY2LjgwNzkgMTMzLDc4LjVDIDEzNi4zMDMsODMuNzY2NCAxMzguNDcsODkuNDMzMSAxMzkuNSw5NS41QyAxMzMuNDkxLDk1LjY2NjIgMTI3LjQ5MSw5NS40OTk1IDEyMS41LDk1QyAxMTcuMjI0LDgzLjM1NjUgMTA4Ljg5LDc4LjY4OTkgOTYuNSw4MUMgODYuOTQzNSw4My41OTE5IDgxLjExMDIsODkuNzU4NiA3OSw5OS41QyA3NS44MTE5LDExMi41NzQgNzguNjQ1MiwxMjQuMDc0IDg3LjUsMTM0QyA5NC42MzQ5LDEzOC42OCAxMDIuMzAyLDEzOS42OCAxMTAuNSwxMzdDIDExNS42OTcsMTM0LjYzNyAxMTkuMzYzLDEzMC44MDMgMTIxLjUsMTI1LjVDIDEyNy40NjMsMTI0LjUwNCAxMzMuNDYzLDEyNC4xNzEgMTM5LjUsMTI0LjVDIDEzNi43MTQsMTQxLjExOSAxMjcuMDQ4LDE1MC45NTIgMTEwLjUsMTU0QyA3OC44Mzk0LDE1Ni4xODIgNjEuODM5NCwxNDEuMzQ5IDU5LjUsMTA5LjVDIDYwLjAzLDg2LjAyNTggNzEuMzYzMyw3MS4wMjU4IDkzLjUsNjQuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eTowLjkzMyIgZmlsbD0iIzI3N2FiZSIgZD0iTSA1MzguNSw2NC41IEMgNTU0LjQ5NCw2Mi4zMjk5IDU2Ny45OTQsNjYuOTk2NSA1NzksNzguNUMgNTgxLjkzNyw4Mi4zNzM2IDU4My43NzEsODYuNzA2OSA1ODQuNSw5MS41QyA1NzguNDkxLDkxLjY2NjIgNTcyLjQ5MSw5MS40OTk1IDU2Ni41LDkxQyA1NjIuMDk0LDgzLjc0MzggNTU1LjU5NCw4MC4yNDM4IDU0Nyw4MC41QyA1MzIuMzAxLDgxLjE5NzYgNTIzLjk2OCw4OC44NjQzIDUyMiwxMDMuNUMgNTE5LjU5OCwxMjkuNDM2IDUzMS4wOTgsMTQwLjYwMiA1NTYuNSwxMzdDIDU2NC4yOTYsMTMzLjcxNCA1NjguMjk2LDEyNy44ODEgNTY4LjUsMTE5LjVDIDU2MC44MzMsMTE5LjUgNTUzLjE2NywxMTkuNSA1NDUuNSwxMTkuNUMgNTQ1LjUsMTE0LjE2NyA1NDUuNSwxMDguODMzIDU0NS41LDEwMy41QyA1NTkuMTY3LDEwMy41IDU3Mi44MzMsMTAzLjUgNTg2LjUsMTAzLjVDIDU4OC44NDgsMTQxLjY1NiA1NzEuMTgyLDE1OC4xNTYgNTMzLjUsMTUzQyA1MTMuNTAyLDE0NS41MzMgNTAzLjUwMiwxMzEuMDMzIDUwMy41LDEwOS41QyA1MDMuOTQsODUuNTY2MyA1MTUuNjA2LDcwLjU2NjMgNTM4LjUsNjQuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eTowLjk4NSIgZmlsbD0iIzI3N2FiZSIgZD0iTSA2MTcuNSw2My41IEMgNjI1LjgzMyw2NC4xNjY3IDYzNC4xNjcsNjQuODMzMyA2NDIuNSw2NS41QyA2NDAuMDEzLDcwLjQ3MzQgNjM3LjUxMyw3NS40NzM0IDYzNSw4MC41QyA2MzYuOTI2LDg5LjI1NSA2NDAuMjYsOTcuNTg4NCA2NDUsMTA1LjVDIDY1MC43LDExNC4yNTcgNjU2Ljg2NywxMjIuNTkxIDY2My41LDEzMC41QyA2NjMuNTY5LDEzNS44NTQgNjYzLjkwMiwxNDEuMTg3IDY2NC41LDE0Ni41QyA2NjQuMzUxLDE0Ny41NTIgNjY0LjUxNywxNDguNTUyIDY2NSwxNDkuNUMgNjczLjcwNywxNTguNzA0IDY4Mi4yMDcsMTY4LjAzNyA2OTAuNSwxNzcuNUMgNjkxLjA3NywxNzguNzczIDY5MS43NDMsMTc4Ljc3MyA2OTIuNSwxNzcuNUMgNjk5LjE3OCwxNjYuMTM5IDcwNS44NDUsMTU0LjgwNiA3MTIuNSwxNDMuNUMgNzE3LjQ2LDEzOS43MTIgNzIyLjI5MywxMzUuNzEyIDcyNywxMzEuNUMgNzI3LjUsMTIyLjUwNiA3MjcuNjY2LDExMy41MDYgNzI3LjUsMTA0LjVDIDczMy44MzMsOTcuMTY2NyA3NDAuMTY3LDg5LjgzMzMgNzQ2LjUsODIuNUMgNzQ2LjgwNCw4MS44NTAxIDc0Ny4xMzcsODEuMTgzNSA3NDcuNSw4MC41QyA3NDUuNSw3NS41IDc0My41LDcwLjUgNzQxLjUsNjUuNUMgNzQ5LjQ3Miw2NC41MDIzIDc1Ny40NzIsNjQuMTY5IDc2NS41LDY0LjVDIDc3Ny4yOTMsODQuMzIwNyA3ODAuNzkzLDEwNS42NTQgNzc2LDEyOC41QyA3NjcuNTM5LDE2MC45NjIgNzQ3LjM3MiwxODIuNDYyIDcxNS41LDE5M0MgNjcyLjYwMywyMDIuMzc2IDYzOS4xMDMsMTg4Ljg3NiA2MTUsMTUyLjVDIDYwMi4yMDYsMTI3Ljg5MiA2MDAuNTM5LDEwMi41NTkgNjEwLDc2LjVDIDYxMi4wMjIsNzEuNzc2OCA2MTQuNTIyLDY3LjQ0MzQgNjE3LjUsNjMuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eToxIiBmaWxsPSIjNjhjMWVhIiBkPSJNIDcyMy41LDY0LjUgQyA3MjMuNSw3My44MzMzIDcyMy41LDgzLjE2NjcgNzIzLjUsOTIuNUMgNzEzLjY2Myw5Ny4zNDM0IDcwMy42NjMsMTAyLjAxIDY5My41LDEwNi41QyA2OTIuODMzLDEwNi41IDY5Mi41LDEwNi44MzMgNjkyLjUsMTA3LjVDIDY5Mi4xNjcsMTA3LjUgNjkxLjgzMywxMDcuNSA2OTEuNSwxMDcuNUMgNjkxLjUsMTA3LjE2NyA2OTEuNSwxMDYuODMzIDY5MS41LDEwNi41QyA2OTEuNSwxMDIuMTY3IDY5MS41LDk3LjgzMzMgNjkxLjUsOTMuNUMgNjkxLjUsODMuODMzMyA2OTEuNSw3NC4xNjY3IDY5MS41LDY0LjVDIDcwMi4xNjcsNjQuNSA3MTIuODMzLDY0LjUgNzIzLjUsNjQuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eToxIiBmaWxsPSIjNGU4YmM5IiBkPSJNIDcyMy41LDYzLjUgQyA3MzcuMTY3LDYzLjUgNzUwLjgzMyw2My41IDc2NC41LDYzLjVDIDc2NS4xNjcsNjMuNSA3NjUuNSw2My44MzMzIDc2NS41LDY0LjVDIDc1Ny40NzIsNjQuMTY5IDc0OS40NzIsNjQuNTAyMyA3NDEuNSw2NS41QyA3NDMuNSw3MC41IDc0NS41LDc1LjUgNzQ3LjUsODAuNUMgNzQ3LjEzNyw4MS4xODM1IDc0Ni44MDQsODEuODUwMSA3NDYuNSw4Mi41QyA3MzguNzEyLDg1LjU2MDggNzMxLjA0NSw4OC44OTQxIDcyMy41LDkyLjVDIDcyMy41LDgzLjE2NjcgNzIzLjUsNzMuODMzMyA3MjMuNSw2NC41QyA3MjMuNSw2NC4xNjY3IDcyMy41LDYzLjgzMzMgNzIzLjUsNjMuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eTowLjk4MiIgZmlsbD0iIzI3N2FiZSIgZD0iTSAyMi41LDY2LjUgQyAyOC4xNjY3LDY2LjUgMzMuODMzMyw2Ni41IDM5LjUsNjYuNUMgMzkuNSw5NS4xNjY3IDM5LjUsMTIzLjgzMyAzOS41LDE1Mi41QyAzMy44MzMzLDE1Mi41IDI4LjE2NjcsMTUyLjUgMjIuNSwxNTIuNUMgMjIuNSwxMjMuODMzIDIyLjUsOTUuMTY2NyAyMi41LDY2LjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MC45NDkiIGZpbGw9IiMyNzdhYmUiIGQ9Ik0gMTU4LjUsNjYuNSBDIDE3OS41LDY2LjUgMjAwLjUsNjYuNSAyMjEuNSw2Ni41QyAyMjEuNSw3MS44MzMzIDIyMS41LDc3LjE2NjcgMjIxLjUsODIuNUMgMjA2LjUsODIuNSAxOTEuNSw4Mi41IDE3Ni41LDgyLjVDIDE3Ni41LDg4LjUgMTc2LjUsOTQuNSAxNzYuNSwxMDAuNUMgMTkwLjgzMywxMDAuNSAyMDUuMTY3LDEwMC41IDIxOS41LDEwMC41QyAyMTkuNSwxMDUuODMzIDIxOS41LDExMS4xNjcgMjE5LjUsMTE2LjVDIDIwNS4xNjcsMTE2LjUgMTkwLjgzMywxMTYuNSAxNzYuNSwxMTYuNUMgMTc2LjUsMTIzLjUgMTc2LjUsMTMwLjUgMTc2LjUsMTM3LjVDIDE5MS44MzMsMTM3LjUgMjA3LjE2NywxMzcuNSAyMjIuNSwxMzcuNUMgMjIyLjUsMTQyLjUgMjIyLjUsMTQ3LjUgMjIyLjUsMTUyLjVDIDIwMS4xNjcsMTUyLjUgMTc5LjgzMywxNTIuNSAxNTguNSwxNTIuNUMgMTU4LjUsMTIzLjgzMyAxNTguNSw5NS4xNjY3IDE1OC41LDY2LjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MC45NjMiIGZpbGw9IiMyNzdhYmUiIGQ9Ik0gMjQzLjUsNjYuNSBDIDI1OC44MzcsNjYuMzMzNCAyNzQuMTcsNjYuNTAwMSAyODkuNSw2N0MgMzA4LjA3Myw3MS4zMTM0IDMxNC4yNCw4Mi40ODAxIDMwOCwxMDAuNUMgMzA1LjQ2MywxMDMuMzcyIDMwMi42MywxMDUuODcyIDI5OS41LDEwOEMgMzExLjQ4MSwxMTIuNzkxIDMxNS45ODEsMTIxLjYyNCAzMTMsMTM0LjVDIDMwOS40NjMsMTQ0LjY5NyAzMDIuMjk2LDE1MC41MyAyOTEuNSwxNTJDIDI3NS41MDMsMTUyLjUgMjU5LjUwMywxNTIuNjY3IDI0My41LDE1Mi41QyAyNDMuNSwxMjMuODMzIDI0My41LDk1LjE2NjcgMjQzLjUsNjYuNSBaIE0gMjYwLjUsODEuNSBDIDI2OC41MDcsODEuMzMzNiAyNzYuNTA3LDgxLjUwMDMgMjg0LjUsODJDIDI5Mi41MDMsODQuMTk2OCAyOTQuODM2LDg5LjAzMDEgMjkxLjUsOTYuNUMgMjg5Ljg2OSw5OC4yOTc0IDI4Ny44NjksOTkuNDY0MSAyODUuNSwxMDBDIDI3Ny4xNzMsMTAwLjUgMjY4Ljg0LDEwMC42NjYgMjYwLjUsMTAwLjVDIDI2MC41LDk0LjE2NjcgMjYwLjUsODcuODMzMyAyNjAuNSw4MS41IFogTSAyNjAuNSwxMTUuNSBDIDI2OS44NzksMTE1LjIyNCAyNzkuMjEyLDExNS43MjQgMjg4LjUsMTE3QyAyOTUuOTQ0LDEyMC42NjUgMjk3Ljc3NywxMjYuMTY1IDI5NCwxMzMuNUMgMjkyLjA2NSwxMzUuMTAyIDI4OS44OTksMTM2LjI2OSAyODcuNSwxMzdDIDI3OC41MDYsMTM3LjUgMjY5LjUwNiwxMzcuNjY2IDI2MC41LDEzNy41QyAyNjAuNSwxMzAuMTY3IDI2MC41LDEyMi44MzMgMjYwLjUsMTE1LjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MC45NTUiIGZpbGw9IiMyNzdhYmUiIGQ9Ik0gMzMzLjUsNjYuNSBDIDM1NC41LDY2LjUgMzc1LjUsNjYuNSAzOTYuNSw2Ni41QyAzOTYuNSw3MS44MzMzIDM5Ni41LDc3LjE2NjcgMzk2LjUsODIuNUMgMzgxLjUsODIuNSAzNjYuNSw4Mi41IDM1MS41LDgyLjVDIDM1MS41LDg4LjUgMzUxLjUsOTQuNSAzNTEuNSwxMDAuNUMgMzY1LjgzMywxMDAuNSAzODAuMTY3LDEwMC41IDM5NC41LDEwMC41QyAzOTQuNSwxMDUuODMzIDM5NC41LDExMS4xNjcgMzk0LjUsMTE2LjVDIDM4MC4xNjcsMTE2LjUgMzY1LjgzMywxMTYuNSAzNTEuNSwxMTYuNUMgMzUxLjUsMTIzLjUgMzUxLjUsMTMwLjUgMzUxLjUsMTM3LjVDIDM2Ni41LDEzNy41IDM4MS41LDEzNy41IDM5Ni41LDEzNy41QyAzOTYuNSwxNDIuNSAzOTYuNSwxNDcuNSAzOTYuNSwxNTIuNUMgMzc1LjUsMTUyLjUgMzU0LjUsMTUyLjUgMzMzLjUsMTUyLjVDIDMzMy41LDEyMy44MzMgMzMzLjUsOTUuMTY2NyAzMzMuNSw2Ni41IFoiLz48L2c+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjAuOTY3IiBmaWxsPSIjMjc3YWJlIiBkPSJNIDQxOC41LDY2LjUgQyA0MzQuODgyLDY2LjA3NjcgNDUxLjIxNSw2Ni41NzY3IDQ2Ny41LDY4QyA0ODUuMjY2LDc1LjI2ODEgNDkxLjA5OSw4OC4xMDE0IDQ4NSwxMDYuNUMgNDgxLjUsMTEyLjY2NyA0NzYuNjY3LDExNy41IDQ3MC41LDEyMUMgNDc3LjUsMTMxLjMzMyA0ODQuNSwxNDEuNjY3IDQ5MS41LDE1MkMgNDg0LjUsMTUyLjY2NyA0NzcuNSwxNTIuNjY3IDQ3MC41LDE1MkMgNDY0LjI1MSwxNDIuODM3IDQ1OC4yNTEsMTMzLjUwMyA0NTIuNSwxMjRDIDQ0Ni44NDMsMTIzLjUwMSA0NDEuMTc2LDEyMy4zMzQgNDM1LjUsMTIzLjVDIDQzNS41LDEzMy4xNjcgNDM1LjUsMTQyLjgzMyA0MzUuNSwxNTIuNUMgNDI5LjgzMywxNTIuNSA0MjQuMTY3LDE1Mi41IDQxOC41LDE1Mi41QyA0MTguNSwxMjMuODMzIDQxOC41LDk1LjE2NjcgNDE4LjUsNjYuNSBaIE0gNDM1LjUsODEuNSBDIDQ0NC45NzUsODAuOTg5MSA0NTQuMzA5LDgxLjgyMjUgNDYzLjUsODRDIDQ2OS44NzksODkuMTAwMyA0NzEuMDQ2LDk1LjI2NyA0NjcsMTAyLjVDIDQ2NS40MjEsMTA0LjA0MSA0NjMuNTg3LDEwNS4yMDggNDYxLjUsMTA2QyA0NTIuOTE2LDEwNy40MSA0NDQuMjUsMTA3LjkxIDQzNS41LDEwNy41QyA0MzUuNSw5OC44MzMzIDQzNS41LDkwLjE2NjcgNDM1LjUsODEuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eToxIiBmaWxsPSIjYTJkOGYxIiBkPSJNIDY5MC41LDYzLjUgQyA3MDEuNSw2My41IDcxMi41LDYzLjUgNzIzLjUsNjMuNUMgNzIzLjUsNjMuODMzMyA3MjMuNSw2NC4xNjY3IDcyMy41LDY0LjVDIDcxMi44MzMsNjQuNSA3MDIuMTY3LDY0LjUgNjkxLjUsNjQuNUMgNjkxLjUsNzQuMTY2NyA2OTEuNSw4My44MzMzIDY5MS41LDkzLjVDIDY5MC41MDYsODMuNjgwNiA2OTAuMTczLDczLjY4MDYgNjkwLjUsNjMuNSBaIi8+PC9nPgo8Zz48cGF0aCBzdHlsZT0ib3BhY2l0eToxIiBmaWxsPSIjOTBkNGYwIiBkPSJNIDY0My41LDY0LjUgQyA2NTMuNTA2LDY0LjMzMzUgNjYzLjUwNiw2NC41MDAyIDY3My41LDY1QyA2NjAuNjgzLDcwLjU3NjIgNjQ4LjAxNiw3Ni40MDk1IDYzNS41LDgyLjVDIDY1My42OTksOTAuNzY1MSA2NzIuMDMyLDk4Ljc2NTEgNjkwLjUsMTA2LjVDIDY5MC4xNDEsMTA4LjM3MSA2ODkuMTQxLDEwOS44NzEgNjg3LjUsMTExQyA2NzkuMDIxLDExNi45ODUgNjcxLjAyMSwxMjMuNDg1IDY2My41LDEzMC41QyA2NTYuODY3LDEyMi41OTEgNjUwLjcsMTE0LjI1NyA2NDUsMTA1LjVDIDY0MC4yNiw5Ny41ODg0IDYzNi45MjYsODkuMjU1IDYzNSw4MC41QyA2MzcuNTEzLDc1LjQ3MzQgNjQwLjAxMyw3MC40NzM0IDY0Mi41LDY1LjVDIDY0My4xNjcsNjUuNSA2NDMuNSw2NS4xNjY3IDY0My41LDY0LjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MSIgZmlsbD0iIzI2NmZhOCIgZD0iTSA3NDYuNSw4Mi41IEMgNzQwLjE2Nyw4OS44MzMzIDczMy44MzMsOTcuMTY2NyA3MjcuNSwxMDQuNUMgNzE2LjgxMiwxMDUuMjggNzA2LjE0NSwxMDYuMjggNjk1LjUsMTA3LjVDIDY5NC41ODQsMTA3LjQ1NyA2OTMuOTE3LDEwNy4xMjQgNjkzLjUsMTA2LjVDIDcwMy42NjMsMTAyLjAxIDcxMy42NjMsOTcuMzQzNCA3MjMuNSw5Mi41QyA3MzEuMDQ1LDg4Ljg5NDEgNzM4LjcxMiw4NS41NjA4IDc0Ni41LDgyLjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MSIgZmlsbD0iIzRkOGFjOCIgZD0iTSA3MjcuNSwxMDQuNSBDIDcyNy42NjYsMTEzLjUwNiA3MjcuNSwxMjIuNTA2IDcyNywxMzEuNUMgNzIyLjI5MywxMzUuNzEyIDcxNy40NiwxMzkuNzEyIDcxMi41LDE0My41QyA3MTIuMTY3LDE0Mi44MzMgNzExLjgzMywxNDIuMTY3IDcxMS41LDE0MS41QyA3MDQuNjI4LDEzMC40MTkgNjk4LjI5NSwxMTkuMDg2IDY5Mi41LDEwNy41QyA2OTIuNSwxMDYuODMzIDY5Mi44MzMsMTA2LjUgNjkzLjUsMTA2LjVDIDY5My45MTcsMTA3LjEyNCA2OTQuNTg0LDEwNy40NTcgNjk1LjUsMTA3LjVDIDcwNi4xNDUsMTA2LjI4IDcxNi44MTIsMTA1LjI4IDcyNy41LDEwNC41IFoiLz48L2c+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjEiIGZpbGw9IiNhYmRjZjEiIGQ9Ik0gNjkwLjUsMTA2LjUgQyA2OTAuODMzLDEwNi41IDY5MS4xNjcsMTA2LjUgNjkxLjUsMTA2LjVDIDY5MS41LDEwNi44MzMgNjkxLjUsMTA3LjE2NyA2OTEuNSwxMDcuNUMgNjkxLjUsMTE1LjUgNjkxLjUsMTIzLjUgNjkxLjUsMTMxLjVDIDY5MS4xNjcsMTMxLjUgNjkwLjgzMywxMzEuNSA2OTAuNSwxMzEuNUMgNjgxLjUwMiwxMzEuMTE5IDY3Mi41MDIsMTMwLjc4NiA2NjMuNSwxMzAuNUMgNjcxLjAyMSwxMjMuNDg1IDY3OS4wMjEsMTE2Ljk4NSA2ODcuNSwxMTFDIDY4OS4xNDEsMTA5Ljg3MSA2OTAuMTQxLDEwOC4zNzEgNjkwLjUsMTA2LjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MSIgZmlsbD0iIzU0YTVkNyIgZD0iTSA2OTEuNSwxMDcuNSBDIDY5MS44MzMsMTA3LjUgNjkyLjE2NywxMDcuNSA2OTIuNSwxMDcuNUMgNjk4LjI5NSwxMTkuMDg2IDcwNC42MjgsMTMwLjQxOSA3MTEuNSwxNDEuNUMgNzA0LjQ1NiwxMzguNzIxIDY5Ny43ODksMTM1LjM4OCA2OTEuNSwxMzEuNUMgNjkxLjUsMTIzLjUgNjkxLjUsMTE1LjUgNjkxLjUsMTA3LjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MSIgZmlsbD0iI2I2ZTBmMiIgZD0iTSA2NjMuNSwxMzAuNSBDIDY3Mi41MDIsMTMwLjc4NiA2ODEuNTAyLDEzMS4xMTkgNjkwLjUsMTMxLjVDIDY5MC41LDEzOC44MzMgNjkwLjUsMTQ2LjE2NyA2OTAuNSwxNTMuNUMgNjgzLjEyNSwxNTIuNjYgNjc1Ljc5MSwxNTEuNDkzIDY2OC41LDE1MEMgNjY2Ljk3MywxNDguOTY4IDY2NS42NCwxNDcuODAxIDY2NC41LDE0Ni41QyA2NjMuOTAyLDE0MS4xODcgNjYzLjU2OSwxMzUuODU0IDY2My41LDEzMC41IFoiLz48L2c+CjxnPjxwYXRoIHN0eWxlPSJvcGFjaXR5OjEiIGZpbGw9IiM1OGFmZGUiIGQ9Ik0gNjkwLjUsMTMxLjUgQyA2OTAuODMzLDEzMS41IDY5MS4xNjcsMTMxLjUgNjkxLjUsMTMxLjVDIDY5Ny43ODksMTM1LjM4OCA3MDQuNDU2LDEzOC43MjEgNzExLjUsMTQxLjVDIDcxMS44MzMsMTQyLjE2NyA3MTIuMTY3LDE0Mi44MzMgNzEyLjUsMTQzLjVDIDcwNS43MzQsMTQ2LjM4MiA2OTkuMDY3LDE0OS41NDkgNjkyLjUsMTUzQyA2OTEuNTQ0LDE1Ni4zOTQgNjkxLjIxMSwxNTkuODk0IDY5MS41LDE2My41QyA2OTAuNTIxLDE2MC4zNzUgNjkwLjE4NywxNTcuMDQyIDY5MC41LDE1My41QyA2OTAuNSwxNDYuMTY3IDY5MC41LDEzOC44MzMgNjkwLjUsMTMxLjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MSIgZmlsbD0iIzI2NmZhOCIgZD0iTSA3MTIuNSwxNDMuNSBDIDcwNS44NDUsMTU0LjgwNiA2OTkuMTc4LDE2Ni4xMzkgNjkyLjUsMTc3LjVDIDY5MS43NDMsMTc4Ljc3MyA2OTEuMDc3LDE3OC43NzMgNjkwLjUsMTc3LjVDIDY5MS40ODYsMTczLjAzIDY5MS44MTksMTY4LjM2MyA2OTEuNSwxNjMuNUMgNjkxLjIxMSwxNTkuODk0IDY5MS41NDQsMTU2LjM5NCA2OTIuNSwxNTNDIDY5OS4wNjcsMTQ5LjU0OSA3MDUuNzM0LDE0Ni4zODIgNzEyLjUsMTQzLjUgWiIvPjwvZz4KPGc+PHBhdGggc3R5bGU9Im9wYWNpdHk6MSIgZmlsbD0iIzhmZDNmMCIgZD0iTSA2NjQuNSwxNDYuNSBDIDY2NS42NCwxNDcuODAxIDY2Ni45NzMsMTQ4Ljk2OCA2NjguNSwxNTBDIDY3NS43OTEsMTUxLjQ5MyA2ODMuMTI1LDE1Mi42NiA2OTAuNSwxNTMuNUMgNjkwLjE4NywxNTcuMDQyIDY5MC41MjEsMTYwLjM3NSA2OTEuNSwxNjMuNUMgNjkxLjgxOSwxNjguMzYzIDY5MS40ODYsMTczLjAzIDY5MC41LDE3Ny41QyA2ODIuMjA3LDE2OC4wMzcgNjczLjcwNywxNTguNzA0IDY2NSwxNDkuNUMgNjY0LjUxNywxNDguNTUyIDY2NC4zNTEsMTQ3LjU1MiA2NjQuNSwxNDYuNSBaIi8+PC9nPgo8L3N2Zz4K
+    keysOrder:
+      - - apiVersion
+      - - appVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - host
+      - - spec
+        - storageClass
+      - - spec
+        - catalog
+      - - spec
+        - storage
+      - - spec
+        - storage
+        - storagePool
+      - - spec
+        - storage
+        - readOnlyUser
+      - - spec
+        - database
+      - - spec
+        - database
+        - size
+      - - spec
+        - database
+        - replicas
+      - - spec
+        - database
+        - password
+      - - spec
+        - resources
+      - - spec
+        - resourcesPreset
+      - - spec
+        - replicaCount
+      - - spec
+        - maintenance
+      - - spec
+        - maintenance
+        - enabled
+      - - spec
+        - maintenance
+        - schedule
+      - - spec
+        - maintenance
+        - retainSnapshotDays
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: trino
+spec:
+  application:
+    kind: Trino
+    plural: trinoes
+    singular: trino
+    openAPISchema: |
+      {"title":"Chart Values","type":"object","properties":{"additionalCatalogs":{"description":"Extra catalogs for federated queries.","type":"array","default":[],"items":{"type":"object","required":["connector","name"],"properties":{"connector":{"description":"Trino connector to use, for example `postgresql`, `mysql`, `kafka`.","type":"string"},"name":{"description":"Catalog name as it appears in SQL (`SELECT ... FROM <name>.schema.table`).","type":"string"},"properties":{"description":"Connector properties, passed through verbatim.","type":"object","additionalProperties":{"type":"string"}}}}},"coordinator":{"description":"Query coordinator.","type":"object","default":{},"required":["resourcesPreset"],"properties":{"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset for the coordinator.","type":"string","default":"u1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}},"host":{"description":"Hostname for external access to the Trino UI and JDBC endpoint via Ingress. Leave empty to keep it reachable only inside the cluster.","type":"string","default":""},"lakehouseRef":{"description":"Name of the `Lakehouse` in this namespace whose catalog and bucket this engine reads. This is a reference rather than a private dependency on purpose: the tables outlive the engine, and several engines are expected to see the same ones.","type":"string","default":""},"workers":{"description":"Query execution workers.","type":"object","default":{},"required":["replicas","resourcesPreset"],"properties":{"replicas":{"description":"Number of workers.","type":"integer","default":2},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset for each worker. Memory is the resource that matters: Trino computes in RAM and a query that does not fit **fails** rather than spilling to disk, so an undersized preset shows up as failed queries, not slow ones.","type":"string","default":"m1.large","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}}}}
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-trino
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: trino-
+  dashboard:
+    category: PaaS
+    singular: "Trino cluster"
+    plural: "Trino clusters"
+    description: "Distributed SQL engine querying lakehouse tables and federating other sources"
+    tags:
+      - data
+      - sql
+      - query
+      - analytics
+      - trino
+    icon: PHN2ZyBmaWxsPSIjREQwMEExIiByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTQuMTI0IDE2Ljg1MjlhLjE2MTUuMTYxNSAwIDEgMSAuMTU3Ni4xNjE0LjE1NzcuMTU3NyAwIDAgMS0uMTU3Ni0uMTYxNHptLTUuNjA3LS4xNTc2YS4xNjE0LjE2MTQgMCAxIDAgMCAuMzIyOC4xNjE0LjE2MTQgMCAwIDAgMC0uMzIyOHptMTAuMTM0MS0uNjY0OHYxLjk4NjljLS4wMzEuNTc4OC0uNTI0IDEuMDIzNy0xLjEwMjkuOTk1NGgtLjM4NDNhNS4wNTk2IDUuMDU5NiAwIDAgMS0xLjEyOTggMS43MTc4LjMxOTIuMzE5MiAwIDAgMCAwIC40NjVsLjIzODIuMjE5MWEuMzAzNi4zMDM2IDAgMCAxIC4wMzg1LjQzMDRjLTEuMTI2IDEuMzgzNS0yLjk2NjkgMi4xNTIxLTUuMDQ5OCAyLjE1MjFhNi41NzUgNi41NzUgMCAwIDEtNC44MTkyLTEuODk4NWMtLjAwMjktLjAwMzItLjAwNTktLjAwNjMtLjAwODctLjAwOTZhLjYzMDIuNjMwMiAwIDAgMSAuMDU0OC0uODg5NmMuMTM3LS4xMjY1LjEzNzEtLjM0NjIgMC0uNDcyN2E0Ljk0NCA0Ljk0NCAwIDAgMS0xLjEyNi0xLjcxNGgtLjM0OTdjLS41Nzk3LjAyODQtMS4wNzM3LS40MTYtMS4xMDY4LS45OTU0di0xLjk4NjljLjAzNTEtLjU3NzkuNTI4Ni0xLjAyIDEuMTA2OC0uOTkxNWguMjcyOGE1Ljc2NDggNS43NjQ4IDAgMCAxIDIuMDc5MS0zLjA5MzZjLS40MjI3LTEuMDk5MS0xLjE1MjktMy4yNTUxLTEuMjI2LTUuMDA3NUM2LjAyMjkgNC40NzA1IDYuMjE4OS4wNzggNy44MjUzLjAwMWMxLjYwNjQtLjA3NjggMS4zNzE5IDQuMDI3NSAxLjA5OTEgNi42OTQ2YTMyLjczMiAzMi43MzIgMCAwIDAtLjEyMyA0LjQ1MDMgNi45OTQgNi45OTQgMCAwIDEgMi40ODI2LS40MzA0IDcuMjQxNCA3LjI0MTQgMCAwIDEgMS43MzcxLjIwNzVjLjI2MTQtMS4yNjgyLjg3NjItMy41NzQgMi4wMjkyLTUuMTk1OCAxLjY3MTctMi4zNTIgMy40MzU3LTQuNzgwOCA0LjYxMTYtNC4xMDA2IDEuMTc2LjY4MDItLjMwNzQgMy4xMzk4LTEuMzI5NyA0LjQyNzItMS4wMjIyIDEuMjg3NC0yLjc4NjIgMy4yMDg5LTMuMzc0MiA0LjIyNzQtLjIxMTQuMzg0My0uNDMwNC44MDMyLS41OTU2IDEuMTUyOWE1LjczNzUgNS43Mzc1IDAgMCAxIDIuOTE2OSAzLjYxMjVoLjA3M3YtMi4zMDU4YS4zMDc1LjMwNzUgMCAwIDAtLjE4MDYtLjI4NDQuOTE0OC45MTQ4IDAgMCAxLS41NTczLS44MTQ4IDEuMDE4NCAxLjAxODQgMCAwIDEgLjkwNDUtLjkwNDRjLjU1OTMtLjA1OTggMS4wNjEuMzQ1MiAxLjEyMDguOTA0NGEuOTE4Ny45MTg3IDAgMCAxLS41NTM0LjgxNDguMzA3NC4zMDc0IDAgMCAwLS4xNjkxLjI4NDR2Mi4xNTIyYS4zMTEzLjMxMTMgMCAwIDAgLjE2OTEuMjgwNS45NzI0Ljk3MjQgMCAwIDEgLjU2NDguODU3em0tMS4wMjIyLTMuOTczN2EuNDM0NS40MzQ1IDAgMCAwIC40NjEyLS40MTUxLjQxNTEuNDE1MSAwIDEgMC0uNDYxMi40MTUxem0tLjQyMjcgMy40Nzc5Yy4wOTc4LjQ3OTQuMTQ4Ljk2NzIuMTQ5OCAxLjQ1NjV2LjM2NTFoLjQxMTNhLjMyMjguMzIyOCAwIDAgMCAuMzIyOC0uMzE5di0xLjAwNjljLS4wMTExLS4yOTY3LS4yNzMzLS41MjU2LS41Njg4LS40OTU3aC0uMzE1MXptLTMuNzI3OC00LjQ4MS42MTEuMjM4M2EzNi42MDQ2IDM2LjYwNDYgMCAwIDEgMi4zODI4LTMuODY2MWMxLjI4NzQtMS43MjU1IDIuMzM2NS0zLjU4MTcgMS44NzE1LTMuODY5OS0uNDY1LS4yODgzLTEuNjE3OSAxLjIyOTctMi43NzA4IDMuMTA5YTM0Ljg5NzggMzQuODk3OCAwIDAgMC0yLjA5NDUgNC4zODg3em0tNC4wNTQ0LjY3MjYuMDE1NCAxLjMzMzVjLS4wMDM5LjIwMDcuMTg4MS4zNTg3LjM4NDMuMzE1MmE2LjQzMTcgNi40MzE3IDAgMCAxIDEuNDU2NS0uMTY1MyA1Ljk5NSA1Ljk5NSAwIDAgMSAxLjQ1MjcuMTcyOWMuMTk1Ni4wMzk4LjM4NTMtLjExNTMuMzg0My0uMzE1MXYtMS4zNDEyYS4zMTkuMzE5IDAgMCAwLS4yNDIxLS4zMTEzIDYuNjY0IDYuNjY0IDAgMCAwLTEuNjAyNi0uMTg0NSA2LjcwOTMgNi43MDkzIDAgMCAwLTEuNjAyNS4xODQ1LjMxODguMzE4OCAwIDAgMC0uMjQ2LjMxMTN6bTEuNzA2MyA2Ljg2Mzd2LjM4NDNhLjY4NzguNjg3OCAwIDAgMS0uNDk5Ni4yNjljLS4zMDc0IDAtLjUzOC0uNDE4OS0uNTM4LS40MTg5YS4wNzMuMDczIDAgMCAwLS4xLS4wMzA3bC0uMDAyNC4wMDEzYS4wNjkzLjA2OTMgMCAwIDAtLjAyNDUuMDk0N2MuMDExNS4wMjMxLjI4MDYuNDk1Ny42NjQ5LjQ5NTdhLjcxNDQuNzE0NCAwIDAgMCAuMzg0My0uMTI2OC4zMjY3LjMyNjcgMCAwIDEgLjM2MTIgMCAuODMzMi44MzMyIDAgMCAwIC40NzI3LjEzNDUuOTU3Ljk1NyAwIDAgMCAuNjU3Mi0uNDgwMy4wNjkyLjA2OTIgMCAwIDAtLjAyNjktLjA5NjEuMDY5Mi4wNjkyIDAgMCAwLS4wOTk5LjAyNjljMCAuMDIzMS0uMjE5MS4zODQzLS41NDE5LjQwNzRhLjgwMzYuODAzNiAwIDAgMS0uNTc2NS0uMjY5di0uMzg0M2EuMzE1NC4zMTU0IDAgMCAxIC4xMjY4LS4yNTM3Yy4xOTYtLjE0OTkuNDE1LS4zOTU4LjQxNS0uNDkxOWEuNTM4LjUzOCAwIDAgMC0uNTc2NC0uNDE4OWMtLjM3NjYgMC0uNjUzMy4yNDk4LS42NTMzLjQ1NzMgMCAuMTM0NS4yNTM2LjMzODIuNDIyNy40NjEyYS4zMjI2LjMyMjYgMCAwIDEgLjEzNDYuMjM4M3pNNy43ODMgMTEuNjQ1NWwuNTc2NS0uMzA3NGMtLjAxOTItMS4xMjYtLjAzNDYtMy4xNDM2IDAtNC41NDI1LjA1MzgtMi4wMzY4LjE1MzctNC41NzMyLS41MjI2LTQuNTQ2M1M2LjY4NzcgNC4yMjg1IDYuOTQ5IDcuMDA3YTMzLjA1NjIgMzMuMDU2MiAwIDAgMCAuODM0IDQuNjM4NXptLTMuMzA1IDUuMzkxOWEuMzE5LjMxOSAwIDAgMCAuMzE5LjMxOWguMzk5N2EzLjA0NiAzLjA0NiAwIDAgMSAwLS4zNjUxIDcuNTQ2IDcuNTQ2IDAgMCAxIC4xNDYxLTEuNDU2NWMtLjA0OTMuMDAwMi0uMzQuMDAwNS0uMzg2Ni0uMDAyMWEuNDg4MS40ODgxIDAgMCAwLS40NzgxLjQ5Nzl2MS4wMDY4em0uOTE4NCAxLjQ3MThhNS4zMjU0IDUuMzI1NCAwIDAgMS0uMTIzLS41NTczLjMyMjguMzIyOCAwIDAgMC0uMzE5LS4yNzI4aC0uNDk1N2MuMDAwNy4wMTYzLS4wMDE1LjM0LjAwMDkuMzU1YS41MTg4LjUxODggMCAwIDAgLjU1MjYuNDgyN2wuMzg0Mi0uMDA3NnptMTAuMTI2NSAyLjkxNy0uMDg4NC0uMDgwN2EuMzIyOS4zMjI5IDAgMCAwLS4zODQzLS4wMjY5IDYuOTgyMyA2Ljk4MjMgMCAwIDEtMy44MDQ2IDEuMDA2OCA2Ljk5NSA2Ljk5NSAwIDAgMS0zLjc5MzItMS4wMDY4LjMyMjguMzIyOCAwIDAgMC0uMzg0My4wMjY5bC0uMDg4NC4wODA3YS4zMTU0LjMxNTQgMCAwIDAgMCAuNDU3MyA2LjAzMDUgNi4wMzA1IDAgMCAwIDQuMjkyNyAxLjU5ODggNi4wNDUzIDYuMDQ1MyAwIDAgMCA0LjI4ODktMS41OTg4LjMxNS4zMTUgMCAwIDAtLjAzODQtLjQ1NzN6bTEuNDQ4OC00LjQxNThjMC0yLjQ1NTctMS4xNTI5LTQuMzI3My0zLjAyNDUtNS4yMjY2LS4yMDgxLS4xMDIyLS40NjczLjA1OTQtLjQ2NS4yOTIxdjEuMzI5N2EuMzI2OS4zMjY5IDAgMCAwIC4yMDM3LjI5NmMxLjczMzIuNzEwOSAyLjkyODQgMi4xODY2IDIuOTI4NCAzLjg3NzYgMCAyLjI3MTItMi4xNTU5IDMuODA4NS01LjM0MTkgMy44MDg1LTMuMTg1OSAwLTUuMzQxOS0xLjU0MTEtNS4zNDE5LTMuODA4NSAwLTEuNjkxIDEuMTk1Mi0zLjE2NjcgMi45Mjg0LTMuODc3NmEuMzE5LjMxOSAwIDAgMCAuMjAzNy0uMjk2di0xLjMyMmMuMDA0OC0uMjMxNS0uMjUzNi0uMzk2My0uNDYxMi0uMjkyMS0xLjg4Ny44ODM5LTMuMDM5OSAyLjc2Ny0zLjAzOTkgNS4yMDczIDAgMi45ODk5IDIuMjg2NiA0Ljk5NiA1LjcxMDggNC45OTYgMy40MjgyLjAwMDEgNS42OTk0LTIuMDA5OCA1LjY5OTQtNC45ODQ0em0tOC42MDg0LS41MzhoLS4wMDM4YS41ODQyLjU4NDIgMCAxIDAgLjAwMzggMHptNS4xNjE0LjU5MTljLjAwNjMuMzIyNi4yNjE1LjU3ODkuNTg0LjU3MjVhLjU4NDIuNTg0MiAwIDEgMC0uNTg0LS41NzI1em00LjU2OTIuNjIyNWgtLjQ5OTZhLjMyMjcuMzIyNyAwIDAgMC0uMzE1MS4yNzI4Yy0uMDM0Ni4xNzMtLjA3NjguMzc2Ni0uMTI2OC41NTczLjAxNjMuMDAwNy4zODYxLS4wMDE0LjQwMTIuMDAwOWEuNTE4OC41MTg4IDAgMCAwIC41MzY2LS41MDA0bC4wMDM3LS4zMzA2eiIvPjwvc3ZnPg==
+    keysOrder:
+      - - apiVersion
+      - - appVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - host
+      - - spec
+        - lakehouseRef
+      - - spec
+        - coordinator
+      - - spec
+        - coordinator
+        - resourcesPreset
+      - - spec
+        - coordinator
+        - resources
+      - - spec
+        - workers
+      - - spec
+        - workers
+        - replicas
+      - - spec
+        - workers
+        - resourcesPreset
+      - - spec
+        - workers
+        - resources
+      - - spec
+        - additionalCatalogs
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: sparkcluster
+spec:
+  application:
+    kind: SparkCluster
+    plural: sparkclusters
+    singular: sparkcluster
+    openAPISchema: |
+      {"title":"Chart Values","type":"object","properties":{"controller":{"description":"Spark Operator deployment.","type":"object","default":{},"required":["replicas","resourcesPreset"],"properties":{"replicas":{"description":"Number of operator replicas.","type":"integer","default":1},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset for the operator.","type":"string","default":"t1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}},"lakehouseRef":{"description":"Name of the `Lakehouse` in this namespace whose tables jobs read and write. Required: a compute engine with no warehouse to point at has nothing to do.","type":"string","default":""}}}
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-sparkcluster
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: sparkcluster-
+  dashboard:
+    category: PaaS
+    singular: "Spark cluster"
+    plural: "Spark clusters"
+    description: "Batch compute for the lakehouse, running on the tenant ComputePlane"
+    tags:
+      - data
+      - spark
+      - batch
+      - etl
+      - compute
+    icon: PHN2ZyBmaWxsPSIjRTI1QTFDIiByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTAuODEyIDBjLS40MjUuMDEzLS44NDUuMjE1LTEuMTk2LjYwNWEzLjU5MyAzLjU5MyAwIDAwLS40OTMuNzIyYy0uMzU1LjY2Ny0uNDI1IDEuNDE1LS41NTYgMi4xNDNhNTUxLjkgNTUxLjkgMCAwMC0uNzI2IDQuMDg3Yy0uMDI3LjE2LS4wOTYuMjI3LS4yNDQuMjczQzUuODMgOC4zODYgNC4wNiA4Ljk0IDIuMyA5LjUxNGMtLjM4Ny4xMjUtLjc3My4yODktMS4xMTQuNTA2LTEuMDQyLjY2NS0xLjE5NiAxLjc1My0uNDE1IDIuNzEuMzQ2LjQyMi43OS43MTUgMS4yODQuOTM2IDEuMS40OSAyLjIwMi45NzYgMy4zIDEuNDcuMDE5LjAxLjAzNi4wMTMuMDUzLjAxOWgtLjAwNGwxLjMwNi41MzVjMCAuMDIzLjAwMi4wNDUgMCAuMDczLS4yIDIuMDMtLjM5IDQuMDYzLS41OCA2LjA5NS0uMDQuNDE5LS4wMTIuODMxLjEzNCAxLjIzLjMxNy44NyAxLjA2NSAxLjE0OCAxLjg4MS43MDEuMzcyLS4yMDQuNjY2LS40OTcuOTM3LS44MTggMS4zNzItMS42MjMgMi43NDYtMy4yNDQgNC4xMTMtNC44NzIuMTExLS4xMzMuMjA1LS4xNS4zNjMtLjA5OC4zNDkuMTE3LjY5Ny4yMzEgMS4wNDUuMzQ3aC4wMDFjLjAyLjAxMi4wNDUuMDIuMDczLjAzbC4xNDIuMDQyYzEuMjQ4LjQxNiAyLjY4Ljc3NSAzLjkyOSAxLjE5LjQuMTMyLjYyMi4xNjQgMS4wNDUuMDk4LjMxMS0uMDQ4LjU5Mi0uMDYyLjgyOC0uMjM2LjYwMi0uMzMuOTk1LS45NTcuOTg4LTEuNjgyLS4wMDUtLjQyNy0uMTU0LS44MTMtLjM1LTEuMTg2LS44Mi0xLjU1Ni0xLjYzNy0zLjExMy0yLjQ2MS00LjY2Ni0uMDc4LS4xNDgtLjA3Ni0uMjQzLjAzNy0uMzc1IDEuMzgxLTEuNjE1IDIuNzU2LTMuMjM2IDQuMTMzLTQuODU1LjI3Mi0uMzIuNTEzLS42NTguNjUzLTEuMDU4LjMwOC0uODc4LS4wOS0xLjU3LTEtMS43NDFhMi43ODMgMi43ODMgMCAwMC0xLjIzNS4wNjljLTEuOTc0LjUyMS0zLjk0NyAxLjA0MS01LjkxOCAxLjU3LS4xNzUuMDQ3LS4yNi4wMTUtLjM1NS0uMTQ0YTM1My4wOCAzNTMuMDggMCAwMC0yLjQyMS00LjAxOCA0LjYxIDQuNjEgMCAwMC0uNjUyLS44NDljLS4zNzEtLjM3LS44MDItLjU0OS0xLjIyNy0uNTM2em0uMTcyIDMuNzAzYS41OTIuNTkyIDAgMDEuMTg5LjIxMWMuODcgMS40NDYgMS43NDIgMi44OSAyLjYwOSA0LjMzOC4wNy4xMTguMTM1LjE2LjI3Ny4xMjEgMS41MjUtLjQxIDMuMDUyLS44MTMgNC41NzktMS4yMTcuMzY3LS4wOTguNzM1LS4xOTMgMS4xMDMtLjI4OWEuMzk5LjM5OSAwIDAxLS4xLjJjLTEuMjU5IDEuNDgtMi41MTYgMi45NjItMy43NzkgNC40MzgtLjExLjEzLS4xMi4yMi0uMDQuMzcuOTM3IDEuODAzIDEuNzY4IDMuMzA5IDIuNDk4IDQuNzZsLTMuNjk2LTEuMDE5Yy0uNTM4LS4xOC0xLjA3Ny0uMzU4LTEuNjE1LS41MzktLjE2My0uMDU1LS4yNS0uMDMtLjM2LjEtMS4yNDggMS40ODgtMi41MDQgMi45Ny0zLjc1OSA0LjQ1NGEuMzk4LjM5OCAwIDAxLS4xOC4xMzJjLjAzNS0uMzc4LjA2OC0uNzU3LjEwNC0xLjEzNi4xNDktMS41NzIuMjk3LTMuMTQ0LjQ1MS00LjcxNi0uMDMtLjMxOC4xMTctLjQwNS0uMzIyLS41NDUtMS40OTMtLjU5My0zLjM0Ni0xLjMyMS00LjgxNi0xLjkwNWEuNTk1LjU5NSAwIDAxLjI0LS4xMzRjMS43OTctLjU3IDMuNTk1LTEuMTQgNS4zOTQtMS43MDUuMTI3LS4wNC4xOTktLjA5Mi4yMTEtLjIzMy4wMTMtLjE0OC4wNS0uMjk0LjA3Ni0uNDQxLjI0MS0xLjM2My40ODMtMi43MjYuNzI2LTQuMDg4LjA2OC0uMzg2LjE0LS43NzEuMjEtMS4xNTd6Ii8+PC9zdmc+
+    keysOrder:
+      - - apiVersion
+      - - appVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - lakehouseRef
+      - - spec
+        - controller
+      - - spec
+        - controller
+        - replicas
+      - - spec
+        - controller
+        - resourcesPreset
+      - - spec
+        - controller
+        - resources
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: airflow
+spec:
+  application:
+    kind: Airflow
+    plural: airflows
+    singular: airflow
+    openAPISchema: |
+      {"title":"Chart Values","type":"object","properties":{"apiServer":{"description":"UI and REST API.","type":"object","default":{},"required":["replicas","resourcesPreset"],"properties":{"replicas":{"description":"Number of API server replicas.","type":"integer","default":2},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset.","type":"string","default":"t1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}},"dags":{"description":"DAG source.","type":"object","default":{},"required":["branch","syncPeriod"],"properties":{"branch":{"description":"Branch to track.","type":"string","default":"main"},"repo":{"description":"Git repository to sync DAGs from. Leave empty to configure DAG delivery yourself.","type":"string","default":""},"sshSecret":{"description":"Name of a Secret holding an SSH key for a private repository. It must already exist on the ComputePlane.","type":"string","default":""},"subPath":{"description":"Path within the repository holding the DAG files. Empty means the repository root.","type":"string","default":""},"syncPeriod":{"description":"How often to poll the repository for changes.","type":"string","default":"60s"}}},"database":{"description":"Metadata database.","type":"object","default":{},"required":["replicas","size"],"properties":{"password":{"description":"Explicit password. When empty, one is generated and preserved across reconciles.","type":"string","default":""},"replicas":{"description":"Number of database instances.","type":"integer","default":2},"size":{"description":"Persistent Volume size.","default":"10Gi","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"host":{"description":"Hostname for the Airflow UI on the ComputePlane's ingress. Leave empty to keep it reachable only inside the cluster.","type":"string","default":""},"logs":{"description":"Task log retention.","type":"object","default":{},"required":["persistence","size"],"properties":{"persistence":{"description":"Keep task logs on a shared volume.","type":"boolean","default":true},"size":{"description":"Volume size for logs.","default":"20Gi","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"storageClass":{"description":"StorageClass for the log volume on the ComputePlane. Must support ReadWriteMany.","type":"string","default":""}}},"scheduler":{"description":"Scheduler.","type":"object","default":{},"required":["replicas","resourcesPreset"],"properties":{"replicas":{"description":"Number of scheduler replicas.","type":"integer","default":1},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset.","type":"string","default":"c1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}},"storageClass":{"description":"StorageClass for the metadata database on the management cluster. Leave empty to use the cluster default.","type":"string","default":""},"triggerer":{"description":"Deferrable task handler.","type":"object","default":{},"required":["resourcesPreset"],"properties":{"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset.","type":"string","default":"t1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}},"workers":{"description":"Per-task pod sizing.","type":"object","default":{},"required":["resourcesPreset"],"properties":{"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset.","type":"string","default":"u1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]}}}}}
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-airflow
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: airflow-
+  dashboard:
+    category: PaaS
+    singular: "Airflow"
+    plural: "Airflow instances"
+    description: "Schedules the pipelines that build and refresh lakehouse tables"
+    tags:
+      - data
+      - airflow
+      - orchestration
+      - scheduling
+      - etl
+    icon: PHN2ZyBmaWxsPSIjMDE3Q0VFIiByb2xlPSJpbWciIHZpZXdCb3g9IjAgMCAyNCAyNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cGF0aCBkPSJNMTcuMTk1IDE2LjgyMmw0LjAwMi00LjEwMkMyMy41NSAxMC4zMDggMjMuOTM0IDUuMTU0IDI0IC40M2EuMzk2LjM5NiAwIDAgMC0uMjQ2LS4zNzMuMzkyLjM5MiAwIDAgMC0uNDM3LjA5bC02LjQ5NSA2LjY1OC00LjEwMi00LjAwM0MxMC4zMDkuNDUgNS4xNTQuMDY2LjQzIDBILjQyM2EuMzk3LjM5NyAwIDAgMC0uMjc3LjY4M2w2LjY1OCA2LjQ5NC00LjAwMyA0LjEwM0MuNDUgMTMuNjkyLjA2NSAxOC44NDYgMCAyMy41N2EuMzk4LjM5OCAwIDAgMCAuNjgzLjI4Mmw2LjQ5NC02LjY1NyAzLjkzNCAzLjgzNy4xNy4xNjVjMi40MSAyLjM1MyA3LjU2NSAyLjczNyAxMi4yODggMi44MDNoLjAwNmEuMzk3LjM5NyAwIDAgMCAuMjc3LS42ODNsLTYuNjU3LTYuNDk1em0tLjQwOS05LjQ3NmMuMDQuMTE1LjA1LjI0LjAzMS4zNDQtLjE3Ljk2LTEuNTkzIDIuNTM4LTQuMzA0IDMuODdhLjU5Ny41OTcgMCAwIDAtLjA4LS4wNzljMS40MzItMy4xNTUgMS44MjgtNS42MSAxLjE3NS03LjMyMmwzLjA1OCAyLjk4NC4xMi4yMDN6bS0uMTMxIDkuNDRhLjczLjczIDAgMCAxLS4zNDcuMDMxYy0uOTYtLjE3MS0yLjUzNy0xLjU5NC0zLjg3LTQuMzA3YS42NTYuNjU2IDAgMCAwIC4wOC0uMDc4bC0uMDAxLjAwMWMzLjE1NSAxLjQzMiA1LjYxIDEuODMgNy4zMjQgMS4xNzRsLTIuOTY5IDMuMDQzTTIzLjU2OC4zOTJhLjA1LjA1IDAgMCAxIC4wNTItLjAxMWMuMDE4LjAwNi4wMy4wMjQuMDI5LjA0My0uMDY1IDQuNjU1LS40MzcgOS43MjYtMi43MDMgMTIuMDUtMS41MyAxLjU2NS00LjMyNiAxLjQxOS04LjI4My0uMzc3LjAwNi0uMDM3LjAyMS0uMDcuMDItLjEwOCAwLS4wNDQtLjAxNy0uMDgyLS4wMjYtLjEyMyAyLjgzLTEuMzkgNC4zMTUtMy4wMzcgNC41MDYtNC4xMTUuMDU3LS4zMjItLjAwOS0uNTQyLS4xMDItLjY4OGw2LjUwNy02LjY3Vi4zOTJ6TS4zOTMuNDNBLjA0NS4wNDUgMCAwIDEgLjM4Mi4zOEMuMzkuMzYuNDAzLjM0My40MjUuMzVjNC42NTUuMDY1IDkuNzI3LjQzOCAxMi4wNSAyLjcwM2wuMDAyLjAwMmMxLjU2IDEuNTI3IDEuNDE1IDQuMzIzLS4zNzkgOC4yOC0uMDMzLS4wMDUtLjA2Mi0uMDItLjA5Ny0uMDJoLS4wMDhjLS4wNDUuMDAxLS4wODQuMDE5LS4xMjYuMDI3LTEuMzktMi44My0zLjAzNy00LjMxNC00LjExNS00LjUwNi0uMzIzLS4wNTctLjU0Mi4wMS0uNjg4LjEwM0wuMzkzLjQzem0xMS45NCAxMS41NjNhLjMzMS4zMzEgMCAwIDEtLjMyNy4zMzVIMTJhLjMzMi4zMzIgMCAwIDEtLjAwNC0uNjYxYy4xNzIuMDE2LjMzMy4xNDQuMzM1LjMyNmguMDAyem0tNS4xMiA0LjY2MWEuNzIyLjcyMiAwIDAgMS0uMDMtLjM0NWMuMTctLjk2IDEuNTk1LTIuNTQgNC4zMDktMy44NzMuMDEzLjAxNi4wMTkuMDM1LjAzMy4wNS4wMTMuMDEyLjAzLjAxNy4wNDQuMDI4LTEuNDM0IDMuMTU4LTEuODMgNS42MTMtMS4xNzcgNy4zMjZsLTMuMDQxLTIuOTY3bS0uMDA2LTkuNjU5YS43MzUuNzM1IDAgMCAxIC4zNDUtLjAzMWMuOTYxLjE3IDIuNTQgMS41OTQgMy44NzEgNC4zMDZhLjU5Ny41OTcgMCAwIDAtLjA3OS4wOGMtMi4xNjctLjk4My00LjAwNy0xLjQ4NC01LjQ5OC0xLjQ4NC0uNjggMC0xLjI4OS4xMDMtMS44MjUuMzA4TDcuMTI4IDcuMzVNLjQzIDIzLjYwN2MtLjAxOC4wMTgtLjAzOC4wMTUtLjA1Mi4wMS0uMDE5LS4wMDctLjAyOC0uMDIxLS4wMjgtLjA0My4wNjUtNC42NTQuNDM3LTkuNzI1IDIuNzAzLTEyLjA0OSAxLjUyNy0xLjU2NSA0LjMyNS0xLjQxOSA4LjI4Ni4zNzgtLjAwNi4wMzUtLjAyLjA2Ny0uMDIuMTA0IDAgLjA0My4wMTguMDgzLjAyNi4xMjQtMi44MzEgMS4zOTEtNC4zMTcgMy4wNC00LjUxIDQuMTE3LS4wNTcuMzIyLjAxLjU0Mi4xMDMuNjg4TC40MyAyMy42MDd6bTIzLjE0NC4wNDJjLTQuNjU1LS4wNjUtOS43MjYtLjQzNy0xMi4wNS0yLjcwM2wtLjAwNS0uMDA2Yy0xLjU2LTEuNTI2LTEuNDEyLTQuMzIyLjM4My04LjI3OS4wMzMuMDA1LjA2NC4wMi4wOTguMDJoLjAwOWMuMDQzIDAgLjA4LS4wMTguMTIyLS4wMjcgMS4zOSAyLjgzMiAzLjAzNiA0LjMxNyA0LjExNSA0LjUxLjA4My4wMTQuMTYuMDIxLjIzLjAyMWEuNzc2Ljc3NiAwIDAgMCAuNDUtLjEzM2w2LjY4IDYuNTE2Yy4wMi4wMi4wMTYuMDQuMDEuMDUyYS4wNDIuMDQyIDAgMCAxLS4wNDIuMDI5eiIvPjwvc3ZnPg==
+    keysOrder:
+      - - apiVersion
+      - - appVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - host
+      - - spec
+        - storageClass
+      - - spec
+        - dags
+      - - spec
+        - dags
+        - repo
+      - - spec
+        - dags
+        - branch
+      - - spec
+        - dags
+        - subPath
+      - - spec
+        - dags
+        - syncPeriod
+      - - spec
+        - dags
+        - sshSecret
+      - - spec
+        - logs
+      - - spec
+        - logs
+        - persistence
+      - - spec
+        - logs
+        - size
+      - - spec
+        - logs
+        - storageClass
+      - - spec
+        - database
+      - - spec
+        - database
+        - size
+      - - spec
+        - database
+        - replicas
+      - - spec
+        - database
+        - password
+      - - spec
+        - scheduler
+      - - spec
+        - scheduler
+        - replicas
+      - - spec
+        - scheduler
+        - resourcesPreset
+      - - spec
+        - scheduler
+        - resources
+      - - spec
+        - apiServer
+      - - spec
+        - apiServer
+        - replicas
+      - - spec
+        - apiServer
+        - resourcesPreset
+      - - spec
+        - apiServer
+        - resources
+      - - spec
+        - triggerer
+      - - spec
+        - triggerer
+        - resourcesPreset
+      - - spec
+        - triggerer
+        - resources
+      - - spec
+        - workers
+      - - spec
+        - workers
+        - resourcesPreset
+      - - spec
+        - workers
+        - resources
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: mlflow
+spec:
+  application:
+    kind: MLflow
+    plural: mlflows
+    singular: mlflow
+    openAPISchema: |
+      {"title":"Chart Values","type":"object","properties":{"database":{"description":"PostgreSQL configuration.","type":"object","default":{},"required":["replicas","size"],"properties":{"password":{"description":"Optional explicit password. When empty, one is generated and preserved across reconciles.","type":"string","default":""},"replicas":{"description":"Number of database instances.","type":"integer","default":2},"size":{"description":"Persistent Volume size for metadata.","default":"10Gi","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"host":{"description":"Hostname for external access to the MLflow UI and tracking API via Ingress. Leave empty to keep it reachable only inside the cluster.","type":"string","default":""},"lakehouseRef":{"description":"Name of the `Lakehouse` in this namespace whose bucket holds the run artifacts \u2014 models, plots, whatever a training run writes. Metadata lives in the private Postgres below; artifacts are large and belong in object storage.","type":"string","default":""},"replicaCount":{"description":"Number of tracking-server replicas. Stateless \u2014 all state is in Postgres and the bucket \u2014 so this scales freely.","type":"integer","default":2},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the server.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the server.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Default sizing preset. The tracking server records runs rather than executing them, so it stays small no matter how large the training jobs writing to it are.","type":"string","default":"t1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]},"storageClass":{"description":"StorageClass for the managed Postgres PVCs. Leave empty to use the cluster default.","type":"string","default":""}}}
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-mlflow
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: mlflow-
+  dashboard:
+    category: PaaS
+    singular: "MLflow"
+    plural: "MLflow instances"
+    description: "Experiment tracking and model registry for the lakehouse"
+    tags:
+      - ai
+      - ml
+      - mlops
+      - tracking
+      - registry
+    icon: PHN2ZyB3aWR0aD0iMTA5IiBoZWlnaHQ9IjQwIiB2aWV3Qm94PSIwIDAgMTA5IDQwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBkPSJNMCAzMS4wMzE2VjE1LjUwMjRIMy41NDI1OFYxNy40Njk5QzQuNDM2MzYgMTUuODc1NiA2LjM4Mjc4IDE1LjA0NSA4LjEzNTg5IDE1LjA0NUMxMC4xNzggMTUuMDQ1IDExLjk2MzYgMTUuOTcxMyAxMi43OTQzIDE3Ljc4OTVDMTQuMDA5NiAxNS43NDc0IDE1LjgyNzggMTUuMDQ1IDE3LjgzNzMgMTUuMDQ1QzIwLjY0NjkgMTUuMDQ1IDIzLjMyNjMgMTYuODMyNSAyMy4zMjYzIDIwLjk0OTNWMzEuMDMxNkgxOS43NTMxVjIxLjU1NDFDMTkuNzUzMSAxOS43MzU5IDE4LjgyNjggMTguMzYzNiAxNi43NTIyIDE4LjM2MzZDMTQuODA1NyAxOC4zNjM2IDEzLjUyOTIgMTkuODk0NyAxMy41MjkyIDIxLjgwODZWMzEuMDI5N0g5Ljg5MjgyVjIxLjU1NDFDOS44OTI4MiAxOS43Njg0IDguOTk1MjIgMTguMzczMiA2Ljg4OTk1IDE4LjM3MzJDNC45MTI5MiAxOC4zNzMyIDMuNjY2OTkgMTkuODQxMiAzLjY2Njk5IDIxLjgxODJWMzEuMDM5MloiIGZpbGw9IiMzMzMzMzMiLz4KPHBhdGggZD0iTTI3Ljg1NDYgMzEuMDMxNlY3LjkyOTE3SDMxLjU1NzlWMzEuMDMxNloiIGZpbGw9IiMzMzMzMzMiLz4KPHBhdGggZD0iTTMwLjA3MDggMzkuNDg3MUMzMC45MDMzIDM5LjcxODcgMzEuNjUxNyAzOS44Njk5IDMzLjI0MDIgMzkuODY5OUMzNi4xOTMzIDM5Ljg2OTkgMzkuNjc2NSAzOC4yMDQ4IDQwLjU5MzMgMzMuNTMxMUw0NC4zNzg5IDE0Ljc5MjNINTAuMDA3Nkw1MC42OTQ3IDExLjY3NDZINDUuMDA4Nkw0NS43NzQxIDcuOTUwMjNDNDYuMzU5OCA1LjA1ODM3IDQ3Ljk1OTggMy41OTIzNCA1MC41MjgyIDMuNTkyMzRDNTEuMTk2MiAzLjU5MjM0IDUxLjAwODYgMy42NDk3NSA1MS42MDM4IDMuNzYyNjdMNTIuNDI2OCAwLjU3MDMyN0M1MS42MzQ0IDAuMzMzMDA2IDUwLjkyNDQgMC4xOTEzNzkgNDkuMzc4IDAuMTkxMzc5QzQ3Ljc0NTQgMC4xNjY4MzEgNDYuMTUxNCAwLjY4ODkzNCA0NC44NDk3IDEuNjc0NjNDNDMuNDA4NiAyLjc4ODUxIDQyLjQ1NzQgNC40MjQ4NyA0Mi4wMjMgNi41Mzc3OUw0MC45NTY5IDExLjY3NDZIMzUuOTIzNEwzNS41MTE5IDE0Ljc5NDNINDAuMzM0OUwzNi44NTkzIDMyLjEyMDZDMzYuNDc2NSAzNC4wODYxIDM1LjM1ODggMzYuNDM2NCAzMi4xNTEyIDM2LjQzNjRDMzEuNDIzOSAzNi40MzY0IDMxLjY4OCAzNi4zODA5IDMxLjAyOTcgMzYuMjczN1oiIGZpbGw9IiMwMTk0RTIiLz4KPHBhdGggZD0iTTUzLjM0MTYgMzAuOTA1M0g0OS42NDAyTDU0LjcxMzkgNy41OTYxNkg1OC40MTUzWiIgZmlsbD0iIzAxOTRFMiIvPgo8cGF0aCBkPSJNNzEuODA2NyAxNi40NzY2QzY4LjU3NjIgMTQuMjE2MSA2NC4xNzc4IDE0LjY2MDYgNjEuNDY0OSAxNy41MjE2QzU4Ljc1MTkgMjAuMzgyNiA1OC41NDE2IDI0Ljc5ODQgNjAuOTcwMyAyNy45MDQzTDYzLjM5NTIgMjYuMTI0NEM2Mi4xOTE1IDI0LjYzMTIgNjEuOTQ3MSAyMi41ODE1IDYyLjc2NTggMjAuODQ3MUM2My41ODQ1IDE5LjExMjcgNjUuMzIyNCAxNy45OTg3IDY3LjI0MDIgMTcuOTc5VjE5Ljg3MzdaIiBmaWxsPSIjNDNDOUVEIi8+CjxwYXRoIGQ9Ik02Mi42MTc5IDI5LjQ3MTdDNjUuODQ4NCAzMS43MzIyIDcwLjI0NjggMzEuMjg3NyA3Mi45NTk3IDI4LjQyNjdDNzUuNjcyNyAyNS41NjU3IDc1Ljg4MyAyMS4xNDk5IDczLjQ1NDMgMTguMDQ0TDcxLjAyOTQgMTkuODIzOUM3Mi4yMzMxIDIxLjMxNzEgNzIuNDc3NSAyMy4zNjY4IDcxLjY1ODggMjUuMTAxMkM3MC44NDAxIDI2LjgzNTYgNjkuMTAyMiAyNy45NDk2IDY3LjE4NDQgMjcuOTY5M1YyNi4wNzQ2WiIgZmlsbD0iIzAxOTRFMiIvPgo8cGF0aCBkPSJNNzguMDkxOSAxNS40OTI4SDgyLjEzNTlMODIuOTU4OCAyNi4xMDUzTDg4LjcxNzcgMTUuNDkyOEw5Mi41NTY5IDE1LjU0ODNMOTQuMDY1MSAyNi4xMDUzTDk5LjEzODcgMTUuNDkyOEwxMDIuODQgMTUuNTQ4M0w5NS4xNjE3IDMxLjA0MTJIOTEuNDYwM0w4OS42NzY1IDE5LjkzNDlMODMuNzgxOCAzMS4wNDEySDc5Ljk0MjZaIiBmaWxsPSIjMDE5NEUyIi8+CjxwYXRoIGQ9Ik0xMDUuMDcyIDE1Ljc2ODRIMTA0LjMwNlYxNS41MDI0SDEwNi4xNTFWMTUuNzc0MUgxMDUuMzg2VjE4LjAxNzJIMTA1LjA3MloiIGZpbGw9IiMwMTk0RTIiLz4KPHBhdGggZD0iTTEwNi42MTQgMTUuNTAyNEgxMDYuOTk3TDEwNy40NzkgMTYuODQyMUMxMDcuNTQxIDE3LjAxNDMgMTA3LjU5OCAxNy4xOTA0IDEwNy42NTcgMTcuMzY2NUgxMDcuNjc1QzEwNy43MzQgMTcuMTkwNCAxMDcuNzg4IDE3LjAxNDMgMTA3Ljg0NyAxNi44NDIxTDEwOC4zMjUgMTUuNTAyNEgxMDguNzA4VjE4LjAxNzJIMTA4LjQxVjE2LjYyOTdDMTA4LjQxIDE2LjQwOTYgMTA4LjQzNCAxNi4xMDcyIDEwOC40NSAxNS44ODMySDEwOC40MzRMMTA4LjI0MyAxNi40NTc0TDEwNy43NjggMTcuNzYwOEgxMDcuNTZMMTA3LjA3OSAxNi40NTkzTDEwNi44ODggMTUuODg1MkgxMDYuODczQzEwNi44OSAxNi4xMDkxIDEwNi45MTUgMTYuNDExNSAxMDYuOTE1IDE2LjYzMTZWMTguMDE5MUgxMDYuNjI0WiIgZmlsbD0iIzAxOTRFMiIvPgo8L3N2Zz4K
+    keysOrder:
+      - - apiVersion
+      - - appVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - host
+      - - spec
+        - storageClass
+      - - spec
+        - lakehouseRef
+      - - spec
+        - database
+      - - spec
+        - database
+        - size
+      - - spec
+        - database
+        - replicas
+      - - spec
+        - database
+        - password
+      - - spec
+        - resources
+      - - spec
+        - resourcesPreset
+      - - spec
+        - replicaCount
+---
+apiVersion: cozystack.io/v1alpha1
+kind: ApplicationDefinition
+metadata:
+  name: coder
+spec:
+  application:
+    kind: Coder
+    plural: coders
+    singular: coder
+    openAPISchema: |
+      {"title":"Chart Values","type":"object","properties":{"database":{"description":"Coder database.","type":"object","default":{},"required":["replicas","size"],"properties":{"password":{"description":"Explicit password. When empty, one is generated and preserved across reconciles.","type":"string","default":""},"replicas":{"description":"Number of database instances.","type":"integer","default":2},"size":{"description":"Persistent Volume size.","default":"10Gi","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"host":{"description":"Hostname the Coder UI is reached by. Required: Coder builds the URLs it hands to browsers and workspace agents from this, so it cannot be derived from a Service address.","type":"string","default":""},"replicaCount":{"description":"Number of Coder server replicas.","type":"integer","default":2},"resources":{"description":"Explicit resources, overriding the preset.","type":"object","default":{},"properties":{"cpu":{"description":"CPU available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true},"memory":{"description":"Memory available to the pod.","pattern":"^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$","anyOf":[{"type":"integer"},{"type":"string"}],"x-kubernetes-int-or-string":true}}},"resourcesPreset":{"description":"Sizing preset for the Coder server. The server brokers connections and provisions workspaces rather than running their workloads, so it stays small however large the workspaces are.","type":"string","default":"t1.medium","enum":["t1.nano","t1.micro","t1.small","t1.medium","t1.large","t1.xlarge","t1.2xlarge","t1.4xlarge","c1.nano","c1.micro","c1.small","c1.medium","c1.large","c1.xlarge","c1.2xlarge","c1.4xlarge","s1.nano","s1.micro","s1.small","s1.medium","s1.large","s1.xlarge","s1.2xlarge","s1.4xlarge","u1.nano","u1.micro","u1.small","u1.medium","u1.large","u1.xlarge","u1.2xlarge","u1.4xlarge","m1.nano","m1.micro","m1.small","m1.medium","m1.large","m1.xlarge","m1.2xlarge","m1.4xlarge"]},"storageClass":{"description":"StorageClass for the database on the management cluster. Leave empty to use the cluster default.","type":"string","default":""},"wildcardHost":{"description":"Base domain for per-workspace application subdomains, without the leading wildcard. Leave empty to serve workspace apps on paths instead, which breaks any app that assumes it owns the document root.","type":"string","default":""}}}
+  release:
+    chartRef:
+      kind: HelmChart
+      name: cozyllm-coder
+      namespace: cozy-public
+    labels:
+      cozystack.io/ui: "true"
+    prefix: coder-
+  dashboard:
+    category: PaaS
+    singular: "Coder"
+    plural: "Coder instances"
+    description: "Remote development workspaces placed next to the data they query"
+    tags:
+      - development
+      - workspaces
+      - ide
+      - remote
+    icon: PHN2ZyB3aWR0aD0iMjU2IiBoZWlnaHQ9IjI1NiIgdmlld0JveD0iMCAwIDI1NiAyNTYiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxwYXRoIGQ9Ik03My42ODE1IDY0QzExNi4zMzggNjQuMDAwMSAxNDAuMjUyIDg1LjYwMTIgMTQxLjA2IDExNy4zOTdMMTA0LjIyIDExOC42MDZDMTAzLjI1IDEwMC45OCA4OC42MjcyIDg5LjQwMjIgNzMuNjgxNSA4OS43NDc0QzUzLjE2MDcgOTAuMTc5NSAzNy45NzA5IDEwNC43ODIgMzcuOTcwOCAxMjcuOTM4QzM3Ljk3MDggMTUxLjA5MyA1My4xNjAzIDE2NS40MzcgNzMuNjgxNSAxNjUuNDM3Qzg4LjYyNzIgMTY1LjQzNiAxMDIuOTI2IDE1NC4zNzcgMTA0LjU0MyAxMzYuNzVMMTQxLjM4MyAxMzcuNjE1QzE0MC40MTQgMTY5LjkyOSAxMTUuMDQ2IDE5MS44NzUgNzMuNjgxNSAxOTEuODc1QzMyLjMxNjcgMTkxLjg3NSAwIDE2Ni44MTggMCAxMjcuOTM4QzAuMDAwMTUxNDk3IDg4Ljg4MzcgMzEuMDI0MSA2NCA3My42ODE1IDY0Wk0yNTYgNjcuNzc4M1YxODguNzQySDE1OS4wNTNWNjcuNzc4M0gyNTZaIiBmaWxsPSJ3aGl0ZSIvPgo8L3N2Zz4K
+    keysOrder:
+      - - apiVersion
+      - - appVersion
+      - - kind
+      - - metadata
+      - - metadata
+        - name
+      - - spec
+        - host
+      - - spec
+        - wildcardHost
+      - - spec
+        - storageClass
+      - - spec
+        - database
+      - - spec
+        - database
+        - size
+      - - spec
+        - database
+        - replicas
+      - - spec
+        - database
+        - password
+      - - spec
+        - resourcesPreset
+      - - spec
+        - resources
+      - - spec
+        - replicaCount
