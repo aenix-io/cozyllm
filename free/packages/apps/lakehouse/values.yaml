@@ -1,0 +1,117 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for external access to the catalog API via Ingress. Leave empty to keep the catalog reachable only inside the cluster, which is the usual choice: engines connect over cluster DNS and nothing outside needs to speak the catalog protocol.
+host: ""
+
+## @param {string} [storageClass] - StorageClass for the catalog's Postgres PVCs. Leave empty to use the cluster default.
+storageClass: ""
+
+##
+## @section Catalog
+##
+
+## @enum {string} CatalogKind - Which catalog implementation backs the lakehouse. Only one value is available today; the enum exists so that adding another later is additive rather than an API change.
+## @value Nessie - Versioned catalog with git-like branches over the state of every table. Lets a multi-table load land atomically: write on a branch, validate, merge.
+
+## @param {CatalogKind} catalog - Catalog implementation. Hive Metastore is deliberately absent: it has no maintained upstream Helm chart, so supporting it means owning a Deployment, and that is deferred until a consumer needs the Hive protocol.
+catalog: Nessie
+
+##
+## @section Storage
+##
+
+## @typedef {struct} Storage - Object storage holding the table data, provisioned as a Cozystack `Bucket`. That bucket is a first-class object the user keeps: it outlives every engine that reads it, which is the whole reason this chart exists as its own kind.
+## @field {string} [storagePool] - Selects a specific BucketClass by storage pool name. Leave empty for the default.
+## @field {bool} readOnlyUser - Also issue a read-only credential alongside the read-write one, for engines that only query.
+## @param {Storage} storage - Object storage for table data.
+storage:
+  storagePool: ""
+  readOnlyUser: true
+
+##
+## @section Database
+##
+
+## @typedef {struct} Database - PostgreSQL behind the catalog. A private dependency: the user never addresses it, but losing it means the bucket holds files nobody can resolve into tables, so it is sized and replicated like any other database that matters.
+## @field {quantity} size - Persistent Volume size for catalog metadata.
+## @field {int} replicas - Number of database instances.
+## @field {string} [password] - Optional explicit password. When empty, one is generated and preserved across reconciles.
+## @param {Database} database - PostgreSQL configuration for the catalog.
+database:
+  size: 20Gi
+  replicas: 2
+  password: ""
+
+##
+## @section Resources
+##
+
+## @typedef {struct} Resources - Explicit CPU and memory for the catalog pod. Leave empty to take the values from `resourcesPreset`; anything set here overrides the preset field by field.
+## @field {quantity} [cpu] - CPU available to the catalog pod.
+## @field {quantity} [memory] - Memory available to the catalog pod.
+## @field {quantity} [ephemeral-storage] - Ephemeral storage for the catalog pod.
+## @param {Resources} [resources] - Explicit resources, overriding the preset.
+resources: {}
+
+## @enum {string} ResourcesPreset - Named sizing preset. The letter picks the CPU-to-memory shape (t/c compute-leaning, s/m memory-leaning, u universal) and the suffix picks the size.
+## @value t1.nano
+## @value t1.micro
+## @value t1.small
+## @value t1.medium
+## @value t1.large
+## @value t1.xlarge
+## @value t1.2xlarge
+## @value t1.4xlarge
+## @value c1.nano
+## @value c1.micro
+## @value c1.small
+## @value c1.medium
+## @value c1.large
+## @value c1.xlarge
+## @value c1.2xlarge
+## @value c1.4xlarge
+## @value s1.nano
+## @value s1.micro
+## @value s1.small
+## @value s1.medium
+## @value s1.large
+## @value s1.xlarge
+## @value s1.2xlarge
+## @value s1.4xlarge
+## @value u1.nano
+## @value u1.micro
+## @value u1.small
+## @value u1.medium
+## @value u1.large
+## @value u1.xlarge
+## @value u1.2xlarge
+## @value u1.4xlarge
+## @value m1.nano
+## @value m1.micro
+## @value m1.small
+## @value m1.medium
+## @value m1.large
+## @value m1.xlarge
+## @value m1.2xlarge
+## @value m1.4xlarge
+## @param {ResourcesPreset} resourcesPreset - Default sizing preset. Requests are derived from these limits through the platform's allocation ratios (cpu-allocation-ratio and friends from the cozystack config), so a preset states what the pod may use, not what it reserves. The catalog is a thin service over a database and is not where analytics load lands, so a small preset is right; the database behind it is sized separately.
+resourcesPreset: "t1.small"
+
+## @param {int} replicaCount - Number of catalog replicas. The service is stateless — all state is in Postgres — so this scales freely.
+replicaCount: 2
+
+##
+## @section Maintenance
+##
+
+## @typedef {struct} Maintenance - Unreferenced-file garbage collection via nessie-gc. A classic MPP database reclaimed space inside VACUUM; here it is explicit work, and without it the bucket grows without bound. Note this covers GC only — compaction of many small Parquet files into fewer large ones is an engine operation and belongs with SparkCluster.
+## @field {bool} enabled - Run the GC CronJob. Off by default: the invocation has not been validated against a running catalog, and a job that deletes data files is the wrong place to guess.
+## @field {string} schedule - Cron schedule for the GC run.
+## @field {int} retainSnapshotDays - Age below which content stays live. Data files unreferenced for longer become collectable, and time travel further back than this stops working.
+## @param {Maintenance} maintenance - Unreferenced-file garbage collection.
+maintenance:
+  enabled: false
+  schedule: "0 3 * * *"
+  retainSnapshotDays: 7

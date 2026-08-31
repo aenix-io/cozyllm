@@ -1,0 +1,191 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "catalog": {
+      "description": "Catalog implementation. Hive Metastore is deliberately absent: it has no maintained upstream Helm chart, so supporting it means owning a Deployment, and that is deferred until a consumer needs the Hive protocol.",
+      "type": "string",
+      "default": "Nessie",
+      "enum": [
+        "Nessie"
+      ]
+    },
+    "database": {
+      "description": "PostgreSQL configuration for the catalog.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "replicas",
+        "size"
+      ],
+      "properties": {
+        "password": {
+          "description": "Optional explicit password. When empty, one is generated and preserved across reconciles.",
+          "type": "string",
+          "default": ""
+        },
+        "replicas": {
+          "description": "Number of database instances.",
+          "type": "integer",
+          "default": 2
+        },
+        "size": {
+          "description": "Persistent Volume size for catalog metadata.",
+          "default": "20Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        }
+      }
+    },
+    "host": {
+      "description": "Hostname for external access to the catalog API via Ingress. Leave empty to keep the catalog reachable only inside the cluster, which is the usual choice: engines connect over cluster DNS and nothing outside needs to speak the catalog protocol.",
+      "type": "string",
+      "default": ""
+    },
+    "maintenance": {
+      "description": "Unreferenced-file garbage collection.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "enabled",
+        "retainSnapshotDays",
+        "schedule"
+      ],
+      "properties": {
+        "enabled": {
+          "description": "Run the GC CronJob. Off by default: the invocation has not been validated against a running catalog, and a job that deletes data files is the wrong place to guess.",
+          "type": "boolean",
+          "default": false
+        },
+        "retainSnapshotDays": {
+          "description": "Age below which content stays live. Data files unreferenced for longer become collectable, and time travel further back than this stops working.",
+          "type": "integer",
+          "default": 7
+        },
+        "schedule": {
+          "description": "Cron schedule for the GC run.",
+          "type": "string",
+          "default": "0 3 * * *"
+        }
+      }
+    },
+    "replicaCount": {
+      "description": "Number of catalog replicas. The service is stateless — all state is in Postgres — so this scales freely.",
+      "type": "integer",
+      "default": 2
+    },
+    "resources": {
+      "description": "Explicit resources, overriding the preset.",
+      "type": "object",
+      "default": {},
+      "properties": {
+        "cpu": {
+          "description": "CPU available to the catalog pod.",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        },
+        "memory": {
+          "description": "Memory available to the catalog pod.",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        }
+      }
+    },
+    "resourcesPreset": {
+      "description": "Default sizing preset. Requests are derived from these limits through the platform's allocation ratios (cpu-allocation-ratio and friends from the cozystack config), so a preset states what the pod may use, not what it reserves. The catalog is a thin service over a database and is not where analytics load lands, so a small preset is right; the database behind it is sized separately.",
+      "type": "string",
+      "default": "t1.small",
+      "enum": [
+        "t1.nano",
+        "t1.micro",
+        "t1.small",
+        "t1.medium",
+        "t1.large",
+        "t1.xlarge",
+        "t1.2xlarge",
+        "t1.4xlarge",
+        "c1.nano",
+        "c1.micro",
+        "c1.small",
+        "c1.medium",
+        "c1.large",
+        "c1.xlarge",
+        "c1.2xlarge",
+        "c1.4xlarge",
+        "s1.nano",
+        "s1.micro",
+        "s1.small",
+        "s1.medium",
+        "s1.large",
+        "s1.xlarge",
+        "s1.2xlarge",
+        "s1.4xlarge",
+        "u1.nano",
+        "u1.micro",
+        "u1.small",
+        "u1.medium",
+        "u1.large",
+        "u1.xlarge",
+        "u1.2xlarge",
+        "u1.4xlarge",
+        "m1.nano",
+        "m1.micro",
+        "m1.small",
+        "m1.medium",
+        "m1.large",
+        "m1.xlarge",
+        "m1.2xlarge",
+        "m1.4xlarge"
+      ]
+    },
+    "storage": {
+      "description": "Object storage for table data.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "readOnlyUser"
+      ],
+      "properties": {
+        "readOnlyUser": {
+          "description": "Also issue a read-only credential alongside the read-write one, for engines that only query.",
+          "type": "boolean",
+          "default": true
+        },
+        "storagePool": {
+          "description": "Selects a specific BucketClass by storage pool name. Leave empty for the default.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "storageClass": {
+      "description": "StorageClass for the catalog's Postgres PVCs. Leave empty to use the cluster default.",
+      "type": "string",
+      "default": ""
+    }
+  }
+}

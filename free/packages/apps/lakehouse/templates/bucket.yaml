@@ -1,0 +1,36 @@
+{{- /*
+  The bucket is the one dependency of this chart that is NOT private. It is a
+  first-class Cozystack object the user keeps and can address directly, because
+  the data outlives every engine that reads it. Deleting the Lakehouse must not
+  be the way a tenant loses their tables, so the bucket carries the Helm
+  resource-policy keep annotation: it survives an uninstall and has to be
+  removed deliberately.
+*/}}
+apiVersion: apps.cozystack.io/v1alpha1
+kind: Bucket
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  {{- with .Values.storage.storagePool }}
+  storagePool: {{ . | quote }}
+  {{- end }}
+  users:
+    # Read-write credential for the engines that commit: Spark writes data
+    # files, Trino writes on INSERT, the catalog itself never touches S3.
+    #
+    # The user names are deliberately bare. The Bucket chart derives the
+    # consumer Secret as `<bucket-release>-<user>-credentials`, and the bucket
+    # release is `bucket-<this release>`, so `rw` yields
+    # `bucket-<release>-rw-credentials`. Prefixing the user with the release
+    # name again would only repeat it inside the Secret name.
+    rw:
+      readonly: false
+    {{- if .Values.storage.readOnlyUser }}
+    # Read-only credential for query-only engines, so a reporting Trino cannot
+    # rewrite the warehouse it reads.
+    ro:
+      readonly: true
+    {{- end }}

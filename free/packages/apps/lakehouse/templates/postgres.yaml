@@ -1,0 +1,45 @@
+{{- /*
+  The catalog's database, and the one piece of this chart that is a genuinely
+  private dependency: the user never addresses it and never needs its name.
+
+  It is nonetheless the component whose loss hurts most. Lose the bucket and you
+  have lost data; lose this and the bucket is still full of Parquet files that
+  nothing can resolve into tables. So it is replicated by default rather than
+  run as a single instance, and it gets the same keep policy as the bucket.
+
+  Provisioned through the Cozystack `Postgres` sibling CR — the same shape
+  JupyterHub uses — so it inherits the platform's backup and failover handling
+  instead of reimplementing them here.
+*/}}
+{{- $secret := printf "postgres-%s-db-app" .Release.Name }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secret }}
+{{- $pw := .Values.database.password }}
+{{- if not $pw }}
+  {{- if and $existing $existing.data (hasKey $existing.data "password") }}
+    {{- $pw = index $existing.data "password" | b64dec }}
+  {{- else }}
+    {{- $pw = randAlphaNum 24 }}
+  {{- end }}
+{{- end }}
+apiVersion: apps.cozystack.io/v1alpha1
+kind: Postgres
+metadata:
+  name: {{ .Release.Name }}-db
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  size: {{ .Values.database.size }}
+  replicas: {{ .Values.database.replicas }}
+  external: false
+  {{- with .Values.storageClass }}
+  storageClass: {{ . }}
+  {{- end }}
+  users:
+    catalog:
+      password: {{ $pw | quote }}
+  databases:
+    catalog:
+      roles:
+        admin:
+          - catalog
