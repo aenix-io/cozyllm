@@ -1,0 +1,22 @@
+apiVersion: v2
+name: airflow
+description: Apache Airflow on the tenant's ComputePlane — schedules the pipelines that build and refresh lakehouse tables
+type: application
+version: 0.1.0
+appVersion: "3.1.7"
+keywords:
+  - data
+  - airflow
+  - orchestration
+  - etl
+  - scheduling
+sources:
+  - https://airflow.apache.org
+  - https://github.com/apache/airflow
+dependencies:
+  - name: cozy-lib
+    version: "*"
+    repository: "file://charts/cozy-lib"
+  - name: cozy-computeplane
+    version: "*"
+    repository: "file://charts/cozy-computeplane"

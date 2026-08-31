@@ -1,0 +1,66 @@
+{{- /*
+  Airflow's metadata database: every DAG definition, task instance, run history
+  and connection lives here. It is a genuinely private dependency — the user
+  never addresses it — so it is a raw CNPG Cluster on the MANAGEMENT cluster
+  rather than a first-class Postgres app, matching how jupyterhub bundles its
+  own.
+
+  It stays on management on purpose. The ComputePlane runs untrusted DAG code;
+  the scheduler's database is the one thing that must survive a compromised
+  worker, and it holds every connection secret the tenant has configured.
+
+  The workload on the ComputePlane reaches it by DNS: the short name resolves
+  because the tenant cluster's kubelet injects the management platform domain
+  into pod resolv.conf, so the lookup falls through to `<name>.<ns>.svc.cozy.local`.
+  Upstream pins this behaviour with a test (packages/apps/kubernetes/tests/
+  ouroboros_test.yaml), so it is a contract rather than an accident.
+
+  The password is generated once and preserved across reconciles: a lookup finds
+  the previous value, and only a genuinely absent Secret produces a new one.
+*/}}
+{{- $db := printf "postgres-%s-db" .Release.Name }}
+{{- $secret := printf "%s-app" $db }}
+{{- $existing := lookup "v1" "Secret" .Release.Namespace $secret }}
+{{- $pw := .Values.database.password }}
+{{- if not $pw }}
+  {{- if and $existing $existing.data (hasKey $existing.data "password") }}
+    {{- $pw = index $existing.data "password" | b64dec }}
+  {{- else }}
+    {{- $pw = randAlphaNum 24 }}
+  {{- end }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $secret }}
+  namespace: {{ .Release.Namespace }}
+type: kubernetes.io/basic-auth
+stringData:
+  username: airflow
+  password: {{ $pw | quote }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ $db }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  instances: {{ .Values.database.replicas }}
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.7-standard-trixie
+  storage:
+    size: {{ .Values.database.size }}
+    {{- with .Values.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  bootstrap:
+    initdb:
+      database: airflow
+      owner: airflow
+      secret:
+        name: {{ $secret }}
+  inheritedMetadata:
+    labels:
+      policy.cozystack.io/allow-to-apiserver: "true"

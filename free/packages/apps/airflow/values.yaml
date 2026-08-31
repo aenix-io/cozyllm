@@ -1,0 +1,142 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for the Airflow UI on the ComputePlane's ingress. Leave empty to keep it reachable only inside the cluster.
+host: ""
+
+## @param {string} [storageClass] - StorageClass for the metadata database on the management cluster. Leave empty to use the cluster default.
+storageClass: ""
+
+##
+## @section DAGs
+##
+
+## @typedef {struct} Dags - Where DAG files come from. Airflow only runs what it can import, so with no repository configured you get a working scheduler with nothing to schedule.
+## @field {string} [repo] - Git repository to sync DAGs from. Leave empty to configure DAG delivery yourself.
+## @field {string} branch - Branch to track.
+## @field {string} [subPath] - Path within the repository holding the DAG files. Empty means the repository root.
+## @field {string} syncPeriod - How often to poll the repository for changes.
+## @field {string} [sshSecret] - Name of a Secret holding an SSH key for a private repository. It must already exist on the ComputePlane.
+## @param {Dags} dags - DAG source.
+dags:
+  repo: ""
+  branch: "main"
+  subPath: ""
+  syncPeriod: "60s"
+  sshSecret: ""
+
+##
+## @section Logs
+##
+
+## @typedef {struct} Logs - Task logs. A task runs in its own pod which exits when the task ends, so without a shared volume the UI cannot show the log of a finished task. Requires a ReadWriteMany storage class on the ComputePlane.
+## @field {bool} persistence - Keep task logs on a shared volume.
+## @field {quantity} size - Volume size for logs.
+## @field {string} [storageClass] - StorageClass for the log volume on the ComputePlane. Must support ReadWriteMany.
+## @param {Logs} logs - Task log retention.
+logs:
+  persistence: true
+  size: 20Gi
+  storageClass: ""
+
+##
+## @section Database
+##
+
+## @typedef {struct} Database - Airflow's metadata database, holding DAG state, run history and connections. It is a private dependency provisioned on the management cluster, not a Postgres app you address directly.
+## @field {quantity} size - Persistent Volume size.
+## @field {int} replicas - Number of database instances.
+## @field {string} [password] - Explicit password. When empty, one is generated and preserved across reconciles.
+## @param {Database} database - Metadata database.
+database:
+  size: 10Gi
+  replicas: 2
+  password: ""
+
+##
+## @section Components
+##
+
+## @enum {string} ResourcesPreset - Named sizing preset. The letter picks the CPU-to-memory shape (t/c compute-leaning, s/m memory-leaning, u universal) and the suffix picks the size.
+## @value t1.nano
+## @value t1.micro
+## @value t1.small
+## @value t1.medium
+## @value t1.large
+## @value t1.xlarge
+## @value t1.2xlarge
+## @value t1.4xlarge
+## @value c1.nano
+## @value c1.micro
+## @value c1.small
+## @value c1.medium
+## @value c1.large
+## @value c1.xlarge
+## @value c1.2xlarge
+## @value c1.4xlarge
+## @value s1.nano
+## @value s1.micro
+## @value s1.small
+## @value s1.medium
+## @value s1.large
+## @value s1.xlarge
+## @value s1.2xlarge
+## @value s1.4xlarge
+## @value u1.nano
+## @value u1.micro
+## @value u1.small
+## @value u1.medium
+## @value u1.large
+## @value u1.xlarge
+## @value u1.2xlarge
+## @value u1.4xlarge
+## @value m1.nano
+## @value m1.micro
+## @value m1.small
+## @value m1.medium
+## @value m1.large
+## @value m1.xlarge
+## @value m1.2xlarge
+## @value m1.4xlarge
+
+## @typedef {struct} Resources - Explicit CPU and memory. Leave empty to take the values from the preset.
+## @field {quantity} [cpu] - CPU available to the pod.
+## @field {quantity} [memory] - Memory available to the pod.
+## @field {quantity} [ephemeral-storage] - Ephemeral storage for the pod.
+
+## @typedef {struct} Scheduler - Parses DAG files, decides what is due and launches a pod per task. DAG parsing is the CPU-hungry part, and it scales with how many DAG files you have rather than how much data they move.
+## @field {int} replicas - Number of scheduler replicas.
+## @field {ResourcesPreset} resourcesPreset - Sizing preset.
+## @field {Resources} [resources] - Explicit resources, overriding the preset.
+## @param {Scheduler} scheduler - Scheduler.
+scheduler:
+  replicas: 1
+  resourcesPreset: "c1.medium"
+  resources: {}
+
+## @typedef {struct} ApiServer - Serves the UI and the REST API. It reads state rather than producing it, so it stays small.
+## @field {int} replicas - Number of API server replicas.
+## @field {ResourcesPreset} resourcesPreset - Sizing preset.
+## @field {Resources} [resources] - Explicit resources, overriding the preset.
+## @param {ApiServer} apiServer - UI and REST API.
+apiServer:
+  replicas: 2
+  resourcesPreset: "t1.medium"
+  resources: {}
+
+## @typedef {struct} Triggerer - Holds deferrable tasks that are waiting on something external. One process parks thousands of waiting tasks without keeping a pod alive for each, so a sensor costs almost nothing.
+## @field {ResourcesPreset} resourcesPreset - Sizing preset.
+## @field {Resources} [resources] - Explicit resources, overriding the preset.
+## @param {Triggerer} triggerer - Deferrable task handler.
+triggerer:
+  resourcesPreset: "t1.medium"
+  resources: {}
+
+## @typedef {struct} Workers - The budget a single task pod gets. With KubernetesExecutor this is not a standing pool: one pod is created per task and removed when it finishes, so this sizes the task rather than the cluster.
+## @field {ResourcesPreset} resourcesPreset - Sizing preset.
+## @field {Resources} [resources] - Explicit resources, overriding the preset.
+## @param {Workers} workers - Per-task pod sizing.
+workers:
+  resourcesPreset: "u1.medium"
+  resources: {}

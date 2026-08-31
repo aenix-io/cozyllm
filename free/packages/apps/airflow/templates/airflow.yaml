@@ -1,0 +1,139 @@
+{{- /*
+  Airflow schedules work. A DAG is a Python file the tenant writes, and the
+  scheduler imports it — so running a DAG is running whatever code the tenant
+  put in the repository. That makes this ComputePlane-only with no toggle, for
+  the same reason as SparkCluster.
+
+  Two upstream defaults are turned off deliberately:
+
+  - `postgresql`, because the chart's bundled subchart pulls a Bitnami image.
+    The metadata database is provisioned as CNPG on management instead
+    (postgres.yaml).
+  - `redis`, because it exists only to broker Celery tasks. KubernetesExecutor
+    launches one pod per task directly, which removes the broker, the Celery
+    workers and pgbouncer along with it — fewer moving parts, and task capacity
+    that follows the ComputePlane's own autoscaling instead of a fixed worker
+    count.
+*/}}
+{{- include "cozy-computeplane.require" (list "Airflow" $) }}
+{{- $db := printf "postgres-%s-db-rw" .Release.Name }}
+{{- $dbSecret := printf "postgres-%s-db-app" .Release.Name }}
+{{- /*
+  Airflow signs session cookies and serialised DAG state with this key. It has
+  to survive reconciles — rotating it invalidates every active session — so it
+  follows the same lookup-then-generate rule as the database password.
+*/}}
+{{- $wsSecretName := printf "%s-webserver-key" .Release.Name }}
+{{- $wsExisting := lookup "v1" "Secret" .Release.Namespace $wsSecretName }}
+{{- $wsKey := "" }}
+{{- if and $wsExisting $wsExisting.data (hasKey $wsExisting.data "webserver-secret-key") }}
+  {{- $wsKey = index $wsExisting.data "webserver-secret-key" | b64dec }}
+{{- else }}
+  {{- $wsKey = randAlphaNum 32 }}
+{{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ $wsSecretName }}
+  namespace: {{ .Release.Namespace }}
+type: Opaque
+stringData:
+  webserver-secret-key: {{ $wsKey | quote }}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  interval: 5m
+  releaseName: {{ .Release.Name }}
+  {{- include "cozy-computeplane.target" $ | nindent 2 }}
+  chart:
+    spec:
+      chart: airflow
+      # renovate: datasource=helm depName=airflow registryUrl=https://airflow.apache.org
+      version: 1.19.0
+      sourceRef:
+        kind: HelmRepository
+        name: airflow
+        namespace: external-airflow
+  values:
+    executor: KubernetesExecutor
+    # One pod per task, launched by the scheduler; no broker in the picture.
+    allowPodLaunching: true
+    rbac:
+      create: true
+    postgresql:
+      enabled: false
+    redis:
+      enabled: false
+    data:
+      metadataConnection:
+        user: airflow
+        protocol: postgresql
+        # Cross-cluster by DNS to the CNPG service on management. See the
+        # comment in postgres.yaml for why the short name resolves.
+        host: {{ $db }}.{{ .Release.Namespace }}.svc
+        port: 5432
+        db: airflow
+        sslmode: require
+    {{- if .Values.dags.repo }}
+    dags:
+      gitSync:
+        enabled: true
+        repo: {{ .Values.dags.repo | quote }}
+        branch: {{ .Values.dags.branch | quote }}
+        subPath: {{ .Values.dags.subPath | quote }}
+        period: {{ .Values.dags.syncPeriod | quote }}
+        {{- with .Values.dags.sshSecret }}
+        # A private repository needs a key. The Secret has to exist on the
+        # ComputePlane, where the git-sync sidecar runs — this chart does not
+        # copy it there.
+        sshKeySecret: {{ . | quote }}
+        {{- end }}
+    {{- end }}
+    logs:
+      persistence:
+        # Task logs are written by pods that exit when the task ends, so
+        # without a shared volume the UI cannot show a finished task's log.
+        # This needs a ReadWriteMany class on the ComputePlane.
+        enabled: {{ .Values.logs.persistence }}
+        size: {{ .Values.logs.size }}
+        {{- with .Values.logs.storageClass }}
+        storageClassName: {{ . | quote }}
+        {{- end }}
+    scheduler:
+      replicas: {{ .Values.scheduler.replicas }}
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.scheduler.resourcesPreset .Values.scheduler.resources $) | nindent 8 }}
+    apiServer:
+      replicas: {{ .Values.apiServer.replicas }}
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.apiServer.resourcesPreset .Values.apiServer.resources $) | nindent 8 }}
+    triggerer:
+      # Deferrable operators park here while waiting on an external system, so
+      # one process holds thousands of waiting tasks without holding pods.
+      enabled: true
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.triggerer.resourcesPreset .Values.triggerer.resources $) | nindent 8 }}
+    workers:
+      # With KubernetesExecutor this sizes the per-task pod, not a standing
+      # worker pool: it is the budget each task gets.
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.workers.resourcesPreset .Values.workers.resources $) | nindent 8 }}
+    {{- with .Values.host }}
+    ingress:
+      apiServer:
+        enabled: true
+        hosts:
+          - name: {{ . | quote }}
+    {{- end }}
+  # Read on management and injected into the values before the release is
+  # applied to the ComputePlane, so neither Secret has to exist there.
+  valuesFrom:
+    - kind: Secret
+      name: {{ $dbSecret }}
+      valuesKey: password
+      targetPath: data.metadataConnection.pass
+    - kind: Secret
+      name: {{ $wsSecretName }}
+      valuesKey: webserver-secret-key
+      targetPath: webserverSecretKey
