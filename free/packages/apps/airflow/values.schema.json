@@ -1,0 +1,494 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "apiServer": {
+      "description": "UI and REST API.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "replicas",
+        "resourcesPreset"
+      ],
+      "properties": {
+        "replicas": {
+          "description": "Number of API server replicas.",
+          "type": "integer",
+          "default": 2
+        },
+        "resources": {
+          "description": "Explicit resources, overriding the preset.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "cpu": {
+              "description": "CPU available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "memory": {
+              "description": "Memory available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          }
+        },
+        "resourcesPreset": {
+          "description": "Sizing preset.",
+          "type": "string",
+          "default": "t1.medium",
+          "enum": [
+            "t1.nano",
+            "t1.micro",
+            "t1.small",
+            "t1.medium",
+            "t1.large",
+            "t1.xlarge",
+            "t1.2xlarge",
+            "t1.4xlarge",
+            "c1.nano",
+            "c1.micro",
+            "c1.small",
+            "c1.medium",
+            "c1.large",
+            "c1.xlarge",
+            "c1.2xlarge",
+            "c1.4xlarge",
+            "s1.nano",
+            "s1.micro",
+            "s1.small",
+            "s1.medium",
+            "s1.large",
+            "s1.xlarge",
+            "s1.2xlarge",
+            "s1.4xlarge",
+            "u1.nano",
+            "u1.micro",
+            "u1.small",
+            "u1.medium",
+            "u1.large",
+            "u1.xlarge",
+            "u1.2xlarge",
+            "u1.4xlarge",
+            "m1.nano",
+            "m1.micro",
+            "m1.small",
+            "m1.medium",
+            "m1.large",
+            "m1.xlarge",
+            "m1.2xlarge",
+            "m1.4xlarge"
+          ]
+        }
+      }
+    },
+    "dags": {
+      "description": "DAG source.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "branch",
+        "syncPeriod"
+      ],
+      "properties": {
+        "branch": {
+          "description": "Branch to track.",
+          "type": "string",
+          "default": "main"
+        },
+        "repo": {
+          "description": "Git repository to sync DAGs from. Leave empty to configure DAG delivery yourself.",
+          "type": "string",
+          "default": ""
+        },
+        "sshSecret": {
+          "description": "Name of a Secret holding an SSH key for a private repository. It must already exist on the ComputePlane.",
+          "type": "string",
+          "default": ""
+        },
+        "subPath": {
+          "description": "Path within the repository holding the DAG files. Empty means the repository root.",
+          "type": "string",
+          "default": ""
+        },
+        "syncPeriod": {
+          "description": "How often to poll the repository for changes.",
+          "type": "string",
+          "default": "60s"
+        }
+      }
+    },
+    "database": {
+      "description": "Metadata database.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "replicas",
+        "size"
+      ],
+      "properties": {
+        "password": {
+          "description": "Explicit password. When empty, one is generated and preserved across reconciles.",
+          "type": "string",
+          "default": ""
+        },
+        "replicas": {
+          "description": "Number of database instances.",
+          "type": "integer",
+          "default": 2
+        },
+        "size": {
+          "description": "Persistent Volume size.",
+          "default": "10Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        }
+      }
+    },
+    "host": {
+      "description": "Hostname for the Airflow UI on the ComputePlane's ingress. Leave empty to keep it reachable only inside the cluster.",
+      "type": "string",
+      "default": ""
+    },
+    "logs": {
+      "description": "Task log retention.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "persistence",
+        "size"
+      ],
+      "properties": {
+        "persistence": {
+          "description": "Keep task logs on a shared volume.",
+          "type": "boolean",
+          "default": true
+        },
+        "size": {
+          "description": "Volume size for logs.",
+          "default": "20Gi",
+          "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "x-kubernetes-int-or-string": true
+        },
+        "storageClass": {
+          "description": "StorageClass for the log volume on the ComputePlane. Must support ReadWriteMany.",
+          "type": "string",
+          "default": ""
+        }
+      }
+    },
+    "scheduler": {
+      "description": "Scheduler.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "replicas",
+        "resourcesPreset"
+      ],
+      "properties": {
+        "replicas": {
+          "description": "Number of scheduler replicas.",
+          "type": "integer",
+          "default": 1
+        },
+        "resources": {
+          "description": "Explicit resources, overriding the preset.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "cpu": {
+              "description": "CPU available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "memory": {
+              "description": "Memory available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          }
+        },
+        "resourcesPreset": {
+          "description": "Sizing preset.",
+          "type": "string",
+          "default": "c1.medium",
+          "enum": [
+            "t1.nano",
+            "t1.micro",
+            "t1.small",
+            "t1.medium",
+            "t1.large",
+            "t1.xlarge",
+            "t1.2xlarge",
+            "t1.4xlarge",
+            "c1.nano",
+            "c1.micro",
+            "c1.small",
+            "c1.medium",
+            "c1.large",
+            "c1.xlarge",
+            "c1.2xlarge",
+            "c1.4xlarge",
+            "s1.nano",
+            "s1.micro",
+            "s1.small",
+            "s1.medium",
+            "s1.large",
+            "s1.xlarge",
+            "s1.2xlarge",
+            "s1.4xlarge",
+            "u1.nano",
+            "u1.micro",
+            "u1.small",
+            "u1.medium",
+            "u1.large",
+            "u1.xlarge",
+            "u1.2xlarge",
+            "u1.4xlarge",
+            "m1.nano",
+            "m1.micro",
+            "m1.small",
+            "m1.medium",
+            "m1.large",
+            "m1.xlarge",
+            "m1.2xlarge",
+            "m1.4xlarge"
+          ]
+        }
+      }
+    },
+    "storageClass": {
+      "description": "StorageClass for the metadata database on the management cluster. Leave empty to use the cluster default.",
+      "type": "string",
+      "default": ""
+    },
+    "triggerer": {
+      "description": "Deferrable task handler.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "resourcesPreset"
+      ],
+      "properties": {
+        "resources": {
+          "description": "Explicit resources, overriding the preset.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "cpu": {
+              "description": "CPU available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "memory": {
+              "description": "Memory available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          }
+        },
+        "resourcesPreset": {
+          "description": "Sizing preset.",
+          "type": "string",
+          "default": "t1.medium",
+          "enum": [
+            "t1.nano",
+            "t1.micro",
+            "t1.small",
+            "t1.medium",
+            "t1.large",
+            "t1.xlarge",
+            "t1.2xlarge",
+            "t1.4xlarge",
+            "c1.nano",
+            "c1.micro",
+            "c1.small",
+            "c1.medium",
+            "c1.large",
+            "c1.xlarge",
+            "c1.2xlarge",
+            "c1.4xlarge",
+            "s1.nano",
+            "s1.micro",
+            "s1.small",
+            "s1.medium",
+            "s1.large",
+            "s1.xlarge",
+            "s1.2xlarge",
+            "s1.4xlarge",
+            "u1.nano",
+            "u1.micro",
+            "u1.small",
+            "u1.medium",
+            "u1.large",
+            "u1.xlarge",
+            "u1.2xlarge",
+            "u1.4xlarge",
+            "m1.nano",
+            "m1.micro",
+            "m1.small",
+            "m1.medium",
+            "m1.large",
+            "m1.xlarge",
+            "m1.2xlarge",
+            "m1.4xlarge"
+          ]
+        }
+      }
+    },
+    "workers": {
+      "description": "Per-task pod sizing.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "resourcesPreset"
+      ],
+      "properties": {
+        "resources": {
+          "description": "Explicit resources, overriding the preset.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "cpu": {
+              "description": "CPU available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "memory": {
+              "description": "Memory available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          }
+        },
+        "resourcesPreset": {
+          "description": "Sizing preset.",
+          "type": "string",
+          "default": "u1.medium",
+          "enum": [
+            "t1.nano",
+            "t1.micro",
+            "t1.small",
+            "t1.medium",
+            "t1.large",
+            "t1.xlarge",
+            "t1.2xlarge",
+            "t1.4xlarge",
+            "c1.nano",
+            "c1.micro",
+            "c1.small",
+            "c1.medium",
+            "c1.large",
+            "c1.xlarge",
+            "c1.2xlarge",
+            "c1.4xlarge",
+            "s1.nano",
+            "s1.micro",
+            "s1.small",
+            "s1.medium",
+            "s1.large",
+            "s1.xlarge",
+            "s1.2xlarge",
+            "s1.4xlarge",
+            "u1.nano",
+            "u1.micro",
+            "u1.small",
+            "u1.medium",
+            "u1.large",
+            "u1.xlarge",
+            "u1.2xlarge",
+            "u1.4xlarge",
+            "m1.nano",
+            "m1.micro",
+            "m1.small",
+            "m1.medium",
+            "m1.large",
+            "m1.xlarge",
+            "m1.2xlarge",
+            "m1.4xlarge"
+          ]
+        }
+      }
+    }
+  }
+}

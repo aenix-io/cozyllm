@@ -1,0 +1,86 @@
+##
+## @section Common parameters
+##
+
+## @param {string} host - Hostname the Coder UI is reached by. Required: Coder builds the URLs it hands to browsers and workspace agents from this, so it cannot be derived from a Service address.
+host: ""
+
+## @param {string} [wildcardHost] - Base domain for per-workspace application subdomains, without the leading wildcard. Leave empty to serve workspace apps on paths instead, which breaks any app that assumes it owns the document root.
+wildcardHost: ""
+
+## @param {string} [storageClass] - StorageClass for the database on the management cluster. Leave empty to use the cluster default.
+storageClass: ""
+
+##
+## @section Database
+##
+
+## @typedef {struct} Database - Coder's database, holding workspace definitions, templates, users and the audit log. A private dependency provisioned on the management cluster, deliberately out of reach of the workspaces themselves.
+## @field {quantity} size - Persistent Volume size.
+## @field {int} replicas - Number of database instances.
+## @field {string} [password] - Explicit password. When empty, one is generated and preserved across reconciles.
+## @param {Database} database - Coder database.
+database:
+  size: 10Gi
+  replicas: 2
+  password: ""
+
+##
+## @section Server
+##
+
+## @enum {string} ResourcesPreset - Named sizing preset. The letter picks the CPU-to-memory shape (t/c compute-leaning, s/m memory-leaning, u universal) and the suffix picks the size.
+## @value t1.nano
+## @value t1.micro
+## @value t1.small
+## @value t1.medium
+## @value t1.large
+## @value t1.xlarge
+## @value t1.2xlarge
+## @value t1.4xlarge
+## @value c1.nano
+## @value c1.micro
+## @value c1.small
+## @value c1.medium
+## @value c1.large
+## @value c1.xlarge
+## @value c1.2xlarge
+## @value c1.4xlarge
+## @value s1.nano
+## @value s1.micro
+## @value s1.small
+## @value s1.medium
+## @value s1.large
+## @value s1.xlarge
+## @value s1.2xlarge
+## @value s1.4xlarge
+## @value u1.nano
+## @value u1.micro
+## @value u1.small
+## @value u1.medium
+## @value u1.large
+## @value u1.xlarge
+## @value u1.2xlarge
+## @value u1.4xlarge
+## @value m1.nano
+## @value m1.micro
+## @value m1.small
+## @value m1.medium
+## @value m1.large
+## @value m1.xlarge
+## @value m1.2xlarge
+## @value m1.4xlarge
+
+## @typedef {struct} Resources - Explicit CPU and memory. Leave empty to take the values from the preset.
+## @field {quantity} [cpu] - CPU available to the pod.
+## @field {quantity} [memory] - Memory available to the pod.
+## @field {quantity} [ephemeral-storage] - Ephemeral storage for the pod.
+
+## @param {ResourcesPreset} resourcesPreset - Sizing preset for the Coder server. The server brokers connections and provisions workspaces rather than running their workloads, so it stays small however large the workspaces are.
+resourcesPreset: "t1.medium"
+
+## @param {Resources} [resources] - Explicit resources, overriding the preset.
+resources: {}
+
+## @param {int} replicaCount - Number of Coder server replicas.
+replicaCount: 2

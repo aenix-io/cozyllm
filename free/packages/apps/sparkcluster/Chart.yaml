@@ -1,0 +1,22 @@
+apiVersion: v2
+name: sparkcluster
+description: Apache Spark on the tenant's ComputePlane — batch compute and Iceberg table maintenance for the lakehouse
+type: application
+version: 0.1.0
+appVersion: "2.5.2"
+keywords:
+  - data
+  - spark
+  - batch
+  - etl
+  - iceberg
+sources:
+  - https://spark.apache.org
+  - https://github.com/kubeflow/spark-operator
+dependencies:
+  - name: cozy-lib
+    version: "*"
+    repository: "file://charts/cozy-lib"
+  - name: cozy-computeplane
+    version: "*"
+    repository: "file://charts/cozy-computeplane"

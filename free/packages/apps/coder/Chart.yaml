@@ -1,0 +1,21 @@
+apiVersion: v2
+name: coder
+description: Coder workspaces on the tenant's ComputePlane — remote development environments next to the data they query
+type: application
+version: 0.1.0
+appVersion: "2.36.3"
+keywords:
+  - development
+  - workspaces
+  - ide
+  - remote
+sources:
+  - https://coder.com
+  - https://github.com/coder/coder
+dependencies:
+  - name: cozy-lib
+    version: "*"
+    repository: "file://charts/cozy-lib"
+  - name: cozy-computeplane
+    version: "*"
+    repository: "file://charts/cozy-computeplane"

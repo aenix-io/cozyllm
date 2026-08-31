@@ -1,0 +1,60 @@
+{{- if .Values.maintenance.enabled }}
+{{- /*
+  Unreferenced-file garbage collection, via nessie-gc — Nessie's own mark-and-
+  sweep tool. It walks the catalog's live references, marks the data files still
+  reachable, and sweeps the rest.
+
+  What this does NOT do is compaction. Rewriting many small Parquet files into
+  fewer large ones is an engine operation (Spark's rewrite_data_files procedure);
+  no catalog-side tool can do it, because the catalog never touches the data
+  files. Compaction therefore belongs with SparkCluster and is a documented gap
+  for a lakehouse that has no engine attached — see README.
+
+  Disabled by default: the exact nessie-gc invocation below has not been
+  validated against a running catalog, and a maintenance job that deletes data
+  files is the wrong place to guess. Turn it on once verified.
+*/}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Release.Name }}-gc
+  namespace: {{ .Release.Namespace }}
+spec:
+  schedule: {{ .Values.maintenance.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      # A sweep that cannot finish is not worth retrying in a loop: the next
+      # scheduled run recomputes the live set from current state anyway.
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: gc
+              image: ghcr.io/projectnessie/nessie-gc:0.108.4
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              args:
+                - gc
+                - --uri
+                - http://{{ .Release.Name }}-catalog.{{ .Release.Namespace }}.svc:19120/api/v2
+                - --cutoff
+                - "PT{{ mul .Values.maintenance.retainSnapshotDays 24 }}H"
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 512Mi
+                limits:
+                  cpu: "1"
+                  memory: 2Gi
+{{- end }}

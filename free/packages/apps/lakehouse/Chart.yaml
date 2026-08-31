@@ -1,0 +1,20 @@
+apiVersion: v2
+name: lakehouse
+description: Iceberg lakehouse foundation — object storage plus a table catalog, shared by every query and compute engine
+type: application
+version: 0.1.0
+appVersion: "0.108.4"
+keywords:
+  - data
+  - lakehouse
+  - iceberg
+  - catalog
+  - nessie
+  - hive-metastore
+sources:
+  - https://projectnessie.org
+  - https://iceberg.apache.org
+dependencies:
+  - name: cozy-lib
+    version: "*"
+    repository: "file://charts/cozy-lib"

@@ -1,0 +1,5 @@
+apiVersion: v2
+name: cozy-computeplane
+description: Shared helper for charts whose workload must run on the tenant's ComputePlane
+type: library
+version: 0.1.0

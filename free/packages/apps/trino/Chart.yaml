@@ -1,0 +1,19 @@
+apiVersion: v2
+name: trino
+description: Distributed SQL query engine over the lakehouse, with federation to systems that have not been migrated yet
+type: application
+version: 0.1.0
+appVersion: "480"
+keywords:
+  - data
+  - sql
+  - analytics
+  - trino
+  - iceberg
+sources:
+  - https://trino.io
+  - https://github.com/trinodb/charts
+dependencies:
+  - name: cozy-lib
+    version: "*"
+    repository: "file://charts/cozy-lib"

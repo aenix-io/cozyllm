@@ -1,0 +1,81 @@
+{{- /*
+  Coder hands a developer a workspace — a container they get a shell in, run a
+  compiler in, and install whatever they like into. That is not a workload that
+  happens to allow code execution; it IS remote code execution as the product.
+  ComputePlane-only, no toggle.
+
+  Coder also creates those workspace pods itself, so its ServiceAccount holds
+  pod-creation rights in its namespace. On the management cluster that would be
+  a tenant-controlled ServiceAccount able to schedule arbitrary pods next to
+  platform components — precisely the shape the ComputePlane exists to contain.
+*/}}
+{{- include "cozy-computeplane.require" (list "Coder" $) }}
+{{- if not .Values.host }}
+{{- fail "coder: host is required — Coder builds workspace URLs from its access URL, so it needs to know the name it is reached by" }}
+{{- end }}
+{{- $db := printf "postgres-%s-db-rw" .Release.Name }}
+{{- $pw := include "coder.dbPassword" . }}
+{{- /*
+  The connection URL is composed here rather than injected through valuesFrom.
+  Coder takes the whole DSN as one environment variable, and valuesFrom writes a
+  single key to a single path — reaching into `coder.env[0].value` would depend
+  on array-index path handling to keep working, and a silent miss there gives a
+  server that cannot reach its database. The password is already a Secret in
+  this namespace, which is the same trust boundary as the HelmRelease.
+*/}}
+{{- $dsn := printf "postgresql://coder:%s@%s.%s.svc:5432/coder?sslmode=require" $pw $db .Release.Namespace }}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  interval: 5m
+  releaseName: {{ .Release.Name }}
+  {{- include "cozy-computeplane.target" $ | nindent 2 }}
+  chart:
+    spec:
+      chart: coder
+      # renovate: datasource=helm depName=coder registryUrl=https://helm.coder.com/v2
+      version: 2.36.3
+      sourceRef:
+        kind: HelmRepository
+        name: coder
+        namespace: external-coder
+  values:
+    coder:
+      replicaCount: {{ .Values.replicaCount }}
+      env:
+        # Cross-cluster to the CNPG service on management; the short name
+        # resolves through the platform domain the tenant kubelet injects into
+        # pod resolv.conf.
+        - name: CODER_PG_CONNECTION_URL
+          value: {{ $dsn | quote }}
+        # Coder builds the URLs it hands to agents and browsers from this, so
+        # it has to be the name users actually reach, not the Service name.
+        - name: CODER_ACCESS_URL
+          value: {{ printf "https://%s" .Values.host | quote }}
+        {{- if .Values.wildcardHost }}
+        # Per-workspace applications are served on their own subdomain. Without
+        # this they fall back to path-based routing, which breaks any app that
+        # assumes it owns the document root.
+        - name: CODER_WILDCARD_ACCESS_URL
+          value: {{ printf "*.%s" .Values.wildcardHost | quote }}
+        {{- end }}
+      # CODER_ACCESS_URL is set explicitly above, so the chart must not also
+      # derive one from the Service address.
+      envUseClusterAccessURL: false
+      serviceAccount:
+        # Coder creates the workspace pods itself; without these it can serve
+        # the UI but never start a workspace.
+        workspacePerms: true
+        enableDeployments: true
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.resourcesPreset .Values.resources $) | nindent 8 }}
+      ingress:
+        enable: true
+        className: nginx
+        host: {{ .Values.host | quote }}
+        {{- with .Values.wildcardHost }}
+        wildcardHost: {{ printf "*.%s" . | quote }}
+        {{- end }}

@@ -30,3 +30,48 @@ metadata:
 spec:
   interval: 5m
   url: https://oauth2-proxy.github.io/manifests
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: nessie
+  namespace: external-nessie
+spec:
+  interval: 5m
+  url: https://charts.projectnessie.org
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: trino
+  namespace: external-trino
+spec:
+  interval: 5m
+  url: https://trinodb.github.io/charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: spark-operator
+  namespace: external-spark-operator
+spec:
+  interval: 5m
+  url: https://kubeflow.github.io/spark-operator
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: airflow
+  namespace: external-airflow
+spec:
+  interval: 5m
+  url: https://airflow.apache.org
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: coder
+  namespace: external-coder
+spec:
+  interval: 5m
+  url: https://helm.coder.com/v2

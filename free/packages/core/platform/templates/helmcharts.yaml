@@ -76,3 +76,81 @@ spec:
   sourceRef:
     kind: GitRepository
     name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-lakehouse
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/apps/lakehouse
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-trino
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/apps/trino
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-sparkcluster
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/apps/sparkcluster
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-airflow
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/apps/airflow
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-mlflow
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/apps/mlflow
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: cozyllm-coder
+  namespace: cozy-public
+spec:
+  chart: ./free/packages/apps/coder
+  interval: 1m
+  reconcileStrategy: Revision
+  sourceRef:
+    kind: GitRepository
+    name: cozyllm

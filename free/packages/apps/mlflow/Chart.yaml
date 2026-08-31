@@ -1,0 +1,19 @@
+apiVersion: v2
+name: mlflow
+description: Experiment tracking and model registry for the lakehouse — records what training runs produced, and where each model version is
+type: application
+version: 0.1.0
+appVersion: "3.15.2"
+keywords:
+  - ai
+  - ml
+  - mlops
+  - tracking
+  - model-registry
+sources:
+  - https://mlflow.org
+  - https://github.com/mlflow/mlflow
+dependencies:
+  - name: cozy-lib
+    version: "*"
+    repository: "file://charts/cozy-lib"

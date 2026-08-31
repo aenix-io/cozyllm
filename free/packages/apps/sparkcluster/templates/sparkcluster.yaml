@@ -1,0 +1,75 @@
+{{- /*
+  Spark runs whatever jar or Python file a user submits — arbitrary code
+  execution is its purpose, not a side effect. So this is ComputePlane-only,
+  with no toggle: there is no safe co-located mode to fall back to, and
+  rendering into the tenant namespace would put untrusted code on the
+  management cluster, which is precisely what the ComputePlane exists to
+  prevent.
+
+  What lands on the ComputePlane is the Spark Operator. The tenant then submits
+  SparkApplication resources into their namespace there, and the operator turns
+  each into a driver pod plus executors that live only for that job.
+*/}}
+{{- include "cozy-computeplane.require" (list "SparkCluster" $) }}
+{{- if not .Values.lakehouseRef }}
+{{- fail "sparkcluster: lakehouseRef is required — name the Lakehouse whose tables jobs should read and write" }}
+{{- end }}
+{{- $lh := .Values.lakehouseRef }}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  interval: 5m
+  releaseName: {{ .Release.Name }}
+  {{- include "cozy-computeplane.target" $ | nindent 2 }}
+  chart:
+    spec:
+      chart: spark-operator
+      # renovate: datasource=helm depName=spark-operator registryUrl=https://kubeflow.github.io/spark-operator
+      version: 2.5.2
+      sourceRef:
+        kind: HelmRepository
+        name: spark-operator
+        namespace: external-spark-operator
+  values:
+    spark:
+      # Jobs are confined to the tenant's own namespace on the ComputePlane.
+      # Leaving this empty would let the operator watch every namespace there.
+      jobNamespaces:
+        - {{ .Release.Namespace }}
+    controller:
+      replicas: {{ .Values.controller.replicas }}
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.controller.resourcesPreset .Values.controller.resources $) | nindent 8 }}
+    webhook:
+      replicas: {{ .Values.controller.replicas }}
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.controller.resourcesPreset .Values.controller.resources $) | nindent 8 }}
+---
+{{- /*
+  Defaults a submitted job inherits: where the lakehouse is, and the Iceberg
+  extensions that make `CALL catalog.system.rewrite_data_files(...)` available.
+  Compaction lives here rather than with the Lakehouse because only an engine
+  can rewrite Parquet — the catalog never touches data files.
+*/}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-defaults
+  namespace: {{ .Release.Namespace }}
+data:
+  spark-defaults.conf: |
+    spark.sql.extensions=org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions
+    spark.sql.catalog.lakehouse=org.apache.iceberg.spark.SparkCatalog
+    spark.sql.catalog.lakehouse.type=rest
+    spark.sql.catalog.lakehouse.uri=http://{{ $lh }}-catalog.{{ .Release.Namespace }}.svc:19120/iceberg/v1
+    spark.sql.catalog.lakehouse.io-impl=org.apache.iceberg.aws.s3.S3FileIO
+    # Credentials are deliberately absent. A properties file does no variable
+    # substitution, so they cannot be templated in without baking secrets into
+    # a ConfigMap. A submitted job supplies them to its driver and executors
+    # from the bucket Secret instead — see the chart README.
+    # Shuffle spills to local disk between stages and its volume is comparable
+    # to the input, so this must be a fast local path rather than a network
+    # volume — that choice is what usually decides whether Spark is fast here.
+    spark.local.dir=/tmp/spark-local

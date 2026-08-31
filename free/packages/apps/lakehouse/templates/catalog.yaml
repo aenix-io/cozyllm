@@ -1,0 +1,63 @@
+{{- /*
+  The catalog stores pointers, not data: it records where each table's current
+  metadata file lives and serialises the commits that move that pointer. The
+  engines read and write the Parquet themselves. That is why this is a small
+  stateless service and why the database behind it is the part that matters.
+
+  Only Nessie is implemented. Hive Metastore has no maintained upstream chart —
+  every option on Artifact Hub is a small community repository — so supporting it
+  means writing and owning a Deployment, which is real work and is deferred until
+  a consumer actually needs the Hive protocol. The `catalog` enum exists with a
+  single value so adding HiveMetastore later is additive rather than an API
+  change.
+*/}}
+{{- if ne .Values.catalog "Nessie" }}
+{{- fail (printf "lakehouse: catalog %q is not implemented; only Nessie is available in this release" .Values.catalog) }}
+{{- end }}
+{{- $db := printf "postgres-%s-db-rw" .Release.Name }}
+{{- $secret := printf "postgres-%s-db-app" .Release.Name }}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}-catalog
+  namespace: {{ .Release.Namespace }}
+spec:
+  interval: 5m
+  releaseName: {{ .Release.Name }}-catalog
+  dependsOn:
+    - name: postgres-{{ .Release.Name }}-db
+      namespace: {{ .Release.Namespace }}
+  chart:
+    spec:
+      chart: nessie
+      # renovate: datasource=helm depName=nessie registryUrl=https://charts.projectnessie.org
+      version: 0.108.4
+      sourceRef:
+        kind: HelmRepository
+        name: nessie
+        namespace: external-nessie
+  values:
+    replicaCount: {{ .Values.replicaCount }}
+    # JDBC against the bundled Postgres. Nessie's other version stores are
+    # in-memory (loses the catalog on restart) or cloud-vendor specific, so this
+    # is the only sensible choice on a self-hosted platform.
+    versionStoreType: JDBC
+    jdbc:
+      jdbcUrl: jdbc:postgresql://{{ $db }}.{{ .Release.Namespace }}.svc:5432/catalog
+      secret:
+        name: {{ $secret }}
+        username: username
+        password: password
+    # Preset plus explicit override, resolved by the platform helper so requests
+    # come out of the limits through cpu-allocation-ratio and friends. Sizing a
+    # pod by hand here would ignore the cluster's overcommit policy.
+    resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.resourcesPreset .Values.resources $) | nindent 6 }}
+    {{- with .Values.host }}
+    ingress:
+      enabled: true
+      hosts:
+        - host: {{ . | quote }}
+          paths:
+            - "/"
+    {{- end }}

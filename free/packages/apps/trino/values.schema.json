@@ -1,0 +1,231 @@
+{
+  "title": "Chart Values",
+  "type": "object",
+  "properties": {
+    "additionalCatalogs": {
+      "description": "Extra catalogs for federated queries.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "object",
+        "required": [
+          "connector",
+          "name"
+        ],
+        "properties": {
+          "connector": {
+            "description": "Trino connector to use, for example `postgresql`, `mysql`, `kafka`.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Catalog name as it appears in SQL (`SELECT ... FROM \u003cname\u003e.schema.table`).",
+            "type": "string"
+          },
+          "properties": {
+            "description": "Connector properties, passed through verbatim.",
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    },
+    "coordinator": {
+      "description": "Query coordinator.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "resourcesPreset"
+      ],
+      "properties": {
+        "resources": {
+          "description": "Explicit resources, overriding the preset.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "cpu": {
+              "description": "CPU available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "memory": {
+              "description": "Memory available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          }
+        },
+        "resourcesPreset": {
+          "description": "Sizing preset for the coordinator.",
+          "type": "string",
+          "default": "u1.medium",
+          "enum": [
+            "t1.nano",
+            "t1.micro",
+            "t1.small",
+            "t1.medium",
+            "t1.large",
+            "t1.xlarge",
+            "t1.2xlarge",
+            "t1.4xlarge",
+            "c1.nano",
+            "c1.micro",
+            "c1.small",
+            "c1.medium",
+            "c1.large",
+            "c1.xlarge",
+            "c1.2xlarge",
+            "c1.4xlarge",
+            "s1.nano",
+            "s1.micro",
+            "s1.small",
+            "s1.medium",
+            "s1.large",
+            "s1.xlarge",
+            "s1.2xlarge",
+            "s1.4xlarge",
+            "u1.nano",
+            "u1.micro",
+            "u1.small",
+            "u1.medium",
+            "u1.large",
+            "u1.xlarge",
+            "u1.2xlarge",
+            "u1.4xlarge",
+            "m1.nano",
+            "m1.micro",
+            "m1.small",
+            "m1.medium",
+            "m1.large",
+            "m1.xlarge",
+            "m1.2xlarge",
+            "m1.4xlarge"
+          ]
+        }
+      }
+    },
+    "host": {
+      "description": "Hostname for external access to the Trino UI and JDBC endpoint via Ingress. Leave empty to keep it reachable only inside the cluster.",
+      "type": "string",
+      "default": ""
+    },
+    "lakehouseRef": {
+      "description": "Name of the `Lakehouse` in this namespace whose catalog and bucket this engine reads. This is a reference rather than a private dependency on purpose: the tables outlive the engine, and several engines are expected to see the same ones.",
+      "type": "string",
+      "default": ""
+    },
+    "workers": {
+      "description": "Query execution workers.",
+      "type": "object",
+      "default": {},
+      "required": [
+        "replicas",
+        "resourcesPreset"
+      ],
+      "properties": {
+        "replicas": {
+          "description": "Number of workers.",
+          "type": "integer",
+          "default": 2
+        },
+        "resources": {
+          "description": "Explicit resources, overriding the preset.",
+          "type": "object",
+          "default": {},
+          "properties": {
+            "cpu": {
+              "description": "CPU available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            },
+            "memory": {
+              "description": "Memory available to the pod.",
+              "pattern": "^(\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\\+|-)?(([0-9]+(\\.[0-9]*)?)|(\\.[0-9]+))))?$",
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "x-kubernetes-int-or-string": true
+            }
+          }
+        },
+        "resourcesPreset": {
+          "description": "Sizing preset for each worker. Memory is the resource that matters: Trino computes in RAM and a query that does not fit **fails** rather than spilling to disk, so an undersized preset shows up as failed queries, not slow ones.",
+          "type": "string",
+          "default": "m1.large",
+          "enum": [
+            "t1.nano",
+            "t1.micro",
+            "t1.small",
+            "t1.medium",
+            "t1.large",
+            "t1.xlarge",
+            "t1.2xlarge",
+            "t1.4xlarge",
+            "c1.nano",
+            "c1.micro",
+            "c1.small",
+            "c1.medium",
+            "c1.large",
+            "c1.xlarge",
+            "c1.2xlarge",
+            "c1.4xlarge",
+            "s1.nano",
+            "s1.micro",
+            "s1.small",
+            "s1.medium",
+            "s1.large",
+            "s1.xlarge",
+            "s1.2xlarge",
+            "s1.4xlarge",
+            "u1.nano",
+            "u1.micro",
+            "u1.small",
+            "u1.medium",
+            "u1.large",
+            "u1.xlarge",
+            "u1.2xlarge",
+            "u1.4xlarge",
+            "m1.nano",
+            "m1.micro",
+            "m1.small",
+            "m1.medium",
+            "m1.large",
+            "m1.xlarge",
+            "m1.2xlarge",
+            "m1.4xlarge"
+          ]
+        }
+      }
+    }
+  }
+}
