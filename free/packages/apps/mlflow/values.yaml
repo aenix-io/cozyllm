@@ -1,0 +1,85 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for external access to the MLflow UI and tracking API via Ingress. Leave empty to keep it reachable only inside the cluster.
+host: ""
+
+## @param {string} [storageClass] - StorageClass for the managed Postgres PVCs. Leave empty to use the cluster default.
+storageClass: ""
+
+## @param {string} lakehouseRef - Name of the `Lakehouse` in this namespace whose bucket holds the run artifacts — models, plots, whatever a training run writes. Metadata lives in the private Postgres below; artifacts are large and belong in object storage.
+lakehouseRef: ""
+
+##
+## @section Database
+##
+
+## @typedef {struct} Database - PostgreSQL holding run metadata: parameters, metrics, the model registry. A private dependency the user never addresses, but the one that holds the experiment history.
+## @field {quantity} size - Persistent Volume size for metadata.
+## @field {int} replicas - Number of database instances.
+## @field {string} [password] - Optional explicit password. When empty, one is generated and preserved across reconciles.
+## @param {Database} database - PostgreSQL configuration.
+database:
+  size: 10Gi
+  replicas: 2
+  password: ""
+
+##
+## @section Resources
+##
+
+## @enum {string} ResourcesPreset - Named sizing preset. The letter picks the CPU-to-memory shape (t/c compute-leaning, s/m memory-leaning, u universal) and the suffix picks the size.
+## @value t1.nano
+## @value t1.micro
+## @value t1.small
+## @value t1.medium
+## @value t1.large
+## @value t1.xlarge
+## @value t1.2xlarge
+## @value t1.4xlarge
+## @value c1.nano
+## @value c1.micro
+## @value c1.small
+## @value c1.medium
+## @value c1.large
+## @value c1.xlarge
+## @value c1.2xlarge
+## @value c1.4xlarge
+## @value s1.nano
+## @value s1.micro
+## @value s1.small
+## @value s1.medium
+## @value s1.large
+## @value s1.xlarge
+## @value s1.2xlarge
+## @value s1.4xlarge
+## @value u1.nano
+## @value u1.micro
+## @value u1.small
+## @value u1.medium
+## @value u1.large
+## @value u1.xlarge
+## @value u1.2xlarge
+## @value u1.4xlarge
+## @value m1.nano
+## @value m1.micro
+## @value m1.small
+## @value m1.medium
+## @value m1.large
+## @value m1.xlarge
+## @value m1.2xlarge
+## @value m1.4xlarge
+
+## @typedef {struct} Resources - Explicit CPU and memory for the tracking server. Leave empty to take the values from the preset; anything set here overrides it field by field.
+## @field {quantity} [cpu] - CPU available to the server.
+## @field {quantity} [memory] - Memory available to the server.
+## @field {quantity} [ephemeral-storage] - Ephemeral storage for the server.
+## @param {Resources} [resources] - Explicit resources, overriding the preset.
+resources: {}
+
+## @param {ResourcesPreset} resourcesPreset - Default sizing preset. The tracking server records runs rather than executing them, so it stays small no matter how large the training jobs writing to it are.
+resourcesPreset: "t1.medium"
+
+## @param {int} replicaCount - Number of tracking-server replicas. Stateless — all state is in Postgres and the bucket — so this scales freely.
+replicaCount: 2

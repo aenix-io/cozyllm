@@ -1,0 +1,157 @@
+{{- /*
+  MLflow ships no Helm chart of its own, and the community ones are third-party
+  repositories with no maintenance commitment, so this renders the Deployment
+  directly against the official image. The server is a single process; there is
+  little for a chart to abstract.
+
+  It records what training runs produced — parameters, metrics, model versions —
+  and executes nothing itself, which is why it stays on the management cluster
+  while SparkCluster and Airflow do not.
+*/}}
+{{- if not .Values.lakehouseRef }}
+{{- fail "mlflow: lakehouseRef is required — name the Lakehouse whose bucket should hold run artifacts" }}
+{{- end }}
+{{- $db := printf "postgres-%s-db-rw" .Release.Name }}
+{{- $dbSecret := printf "postgres-%s-db-app" .Release.Name }}
+{{- /*
+  The Bucket the Lakehouse owns issues `<bucket-release>-<user>-credentials`,
+  and the bucket release is `bucket-` + the Lakehouse release. Its keys are
+  accessKey / secretKey / endpoint / bucketName. The endpoint has no scheme and
+  the bucket name is assigned by the storage driver, so the artifact URI cannot
+  be built at render time and is assembled from env vars in the container.
+*/}}
+{{- $bucketSecret := printf "bucket-lakehouse-%s-rw-credentials" .Values.lakehouseRef }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: mlflow
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: mlflow
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: mlflow
+          image: ghcr.io/mlflow/mlflow:v3.15.2
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          args:
+            - mlflow
+            - server
+            - --host=0.0.0.0
+            - --port=5000
+            - --backend-store-uri=$(BACKEND_URI)
+            - --artifacts-destination=s3://$(BUCKET_NAME)/mlflow
+          env:
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbSecret }}
+                  key: username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $dbSecret }}
+                  key: password
+            - name: BACKEND_URI
+              value: postgresql://$(DB_USER):$(DB_PASSWORD)@{{ $db }}.{{ .Release.Namespace }}.svc:5432/mlflow
+            # S3 credentials for the lakehouse bucket, referenced rather than
+            # copied so a rotation on the Lakehouse side reaches here. boto3,
+            # which MLflow uses for artifact IO, reads exactly these names.
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $bucketSecret }}
+                  key: accessKey
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $bucketSecret }}
+                  key: secretKey
+            - name: S3_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $bucketSecret }}
+                  key: endpoint
+            # Kubernetes expands $(VAR) against earlier entries in this list,
+            # which is how the scheme is prepended to the bare host.
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: "https://$(S3_HOST)"
+            # The driver-assigned bucket name, substituted into the
+            # --artifacts-destination argument above by the same mechanism.
+            - name: BUCKET_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $bucketSecret }}
+                  key: bucketName
+          ports:
+            - name: http
+              containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+          resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.resourcesPreset .Values.resources $) | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/instance: {{ .Release.Name }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 5000
+      targetPort: http
+  selector:
+    app.kubernetes.io/name: mlflow
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- with .Values.host }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $.Release.Name }}
+  namespace: {{ $.Release.Namespace }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: {{ . | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $.Release.Name }}
+                port:
+                  name: http
+{{- end }}

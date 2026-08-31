@@ -1,0 +1,111 @@
+{{- /*
+  Trino holds no data of its own: the coordinator plans, the workers execute,
+  and everything persistent belongs to the Lakehouse this points at. That is why
+  neither carries a PVC and why several Trino releases against one Lakehouse is
+  a normal shape — one sized for interactive analysts, another for scheduled
+  reports.
+
+  lakehouseRef is required rather than defaulted. Guessing which lakehouse an
+  engine should read is exactly the mistake that produces two disjoint
+  warehouses, so an unset value fails at render time with a message instead.
+*/}}
+{{- if not .Values.lakehouseRef }}
+{{- fail "trino: lakehouseRef is required — name the Lakehouse whose tables this engine should read" }}
+{{- end }}
+{{- $lh := .Values.lakehouseRef }}
+{{- $catalog := printf "%s-catalog.%s.svc" $lh .Release.Namespace }}
+{{- /*
+  The Bucket the Lakehouse owns issues one Secret per user. Its name is fixed by
+  the platform's Bucket chart as `<bucket-release>-<user>-credentials`, and the
+  bucket release is `bucket-` + the Lakehouse release, hence the double prefix
+  below. Its keys are `accessKey`, `secretKey`, `endpoint` and `bucketName` —
+  the endpoint carries no scheme, and the bucket name is assigned by the storage
+  driver, so neither is knowable at render time.
+*/}}
+{{- $bucketSecret := printf "bucket-lakehouse-%s-rw-credentials" $lh }}
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  interval: 5m
+  releaseName: {{ .Release.Name }}
+  chart:
+    spec:
+      chart: trino
+      # renovate: datasource=helm depName=trino registryUrl=https://trinodb.github.io/charts
+      version: 1.42.2
+      sourceRef:
+        kind: HelmRepository
+        name: trino
+        namespace: external-trino
+  values:
+    server:
+      workers: {{ .Values.workers.replicas }}
+    coordinator:
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.coordinator.resourcesPreset .Values.coordinator.resources $) | nindent 8 }}
+      # Trino computes in memory and a query that does not fit fails outright
+      # rather than spilling, so the heap must track the pod's limit. The chart
+      # recommends maxHeapPercent over a fixed size for exactly that reason, and
+      # it requires maxHeapSize to be unset to take effect.
+      jvm:
+        maxHeapSize: null
+        maxHeapPercent: 80
+    worker:
+      resources: {{- include "cozy-lib.resources.defaultingSanitize" (list .Values.workers.resourcesPreset .Values.workers.resources $) | nindent 8 }}
+      jvm:
+        maxHeapSize: null
+        maxHeapPercent: 80
+    catalogs:
+      # The lakehouse itself. Nessie speaks the Iceberg REST catalog protocol, so
+      # Trino needs no Nessie-specific connector.
+      lakehouse: |
+        connector.name=iceberg
+        iceberg.catalog.type=rest
+        iceberg.rest-catalog.uri=http://{{ $catalog }}:19120/iceberg/v1
+        fs.native-s3.enabled=true
+        s3.endpoint=${ENV:S3_ENDPOINT}
+        s3.aws-access-key=${ENV:S3_ACCESS_KEY}
+        s3.aws-secret-key=${ENV:S3_SECRET_KEY}
+      {{- range .Values.additionalCatalogs }}
+      {{ .name }}: |
+        connector.name={{ .connector }}
+        {{- range $k, $v := .properties }}
+        {{ $k }}={{ $v }}
+        {{- end }}
+      {{- end }}
+    env:
+      # Referenced rather than copied, so a credential rotation on the Bucket
+      # reaches here without re-rendering this release.
+      - name: S3_HOST
+        valueFrom:
+          secretKeyRef:
+            name: {{ $bucketSecret }}
+            key: endpoint
+      # The Secret stores the endpoint without a scheme but Trino wants a URL.
+      # Kubernetes expands $(VAR) against earlier entries of this same list,
+      # which is the only place the two halves can be joined: a Trino catalog
+      # properties file substitutes nothing beyond ${ENV:...}.
+      - name: S3_ENDPOINT
+        value: "https://$(S3_HOST)"
+      - name: S3_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: {{ $bucketSecret }}
+            key: accessKey
+      - name: S3_SECRET_KEY
+        valueFrom:
+          secretKeyRef:
+            name: {{ $bucketSecret }}
+            key: secretKey
+    {{- with .Values.host }}
+    ingress:
+      enabled: true
+      hosts:
+        - host: {{ . | quote }}
+          paths:
+            - path: /
+              pathType: Prefix
+    {{- end }}

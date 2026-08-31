@@ -1,0 +1,93 @@
+##
+## @section Common parameters
+##
+
+## @param {string} [host] - Hostname for external access to the Trino UI and JDBC endpoint via Ingress. Leave empty to keep it reachable only inside the cluster.
+host: ""
+
+## @param {string} lakehouseRef - Name of the `Lakehouse` in this namespace whose catalog and bucket this engine reads. This is a reference rather than a private dependency on purpose: the tables outlive the engine, and several engines are expected to see the same ones.
+lakehouseRef: ""
+
+##
+## @section Coordinator
+##
+
+## @enum {string} ResourcesPreset - Named sizing preset. The letter picks the CPU-to-memory shape (t/c compute-leaning, s/m memory-leaning, u universal) and the suffix picks the size.
+## @value t1.nano
+## @value t1.micro
+## @value t1.small
+## @value t1.medium
+## @value t1.large
+## @value t1.xlarge
+## @value t1.2xlarge
+## @value t1.4xlarge
+## @value c1.nano
+## @value c1.micro
+## @value c1.small
+## @value c1.medium
+## @value c1.large
+## @value c1.xlarge
+## @value c1.2xlarge
+## @value c1.4xlarge
+## @value s1.nano
+## @value s1.micro
+## @value s1.small
+## @value s1.medium
+## @value s1.large
+## @value s1.xlarge
+## @value s1.2xlarge
+## @value s1.4xlarge
+## @value u1.nano
+## @value u1.micro
+## @value u1.small
+## @value u1.medium
+## @value u1.large
+## @value u1.xlarge
+## @value u1.2xlarge
+## @value u1.4xlarge
+## @value m1.nano
+## @value m1.micro
+## @value m1.small
+## @value m1.medium
+## @value m1.large
+## @value m1.xlarge
+## @value m1.2xlarge
+## @value m1.4xlarge
+
+## @typedef {struct} Resources - Explicit CPU and memory. Leave empty to take the values from the matching preset; anything set here overrides the preset field by field.
+## @field {quantity} [cpu] - CPU available to the pod.
+## @field {quantity} [memory] - Memory available to the pod.
+## @field {quantity} [ephemeral-storage] - Ephemeral storage for the pod.
+
+## @typedef {struct} Coordinator - The node that parses SQL, plans the query and hands work to the workers. One is enough; it holds no data and is not where the query's memory goes.
+## @field {ResourcesPreset} resourcesPreset - Sizing preset for the coordinator.
+## @field {Resources} [resources] - Explicit resources, overriding the preset.
+## @param {Coordinator} coordinator - Query coordinator.
+coordinator:
+  resourcesPreset: "u1.medium"
+  resources: {}
+
+##
+## @section Workers
+##
+
+## @typedef {struct} Workers - The nodes that actually execute the query. Stateless: they hold no data between queries, so they can be added freely — but removing one mid-query kills that query, which is why this should not be attached to an HPA without a graceful-shutdown story.
+## @field {int} replicas - Number of workers.
+## @field {ResourcesPreset} resourcesPreset - Sizing preset for each worker. Memory is the resource that matters: Trino computes in RAM and a query that does not fit **fails** rather than spilling to disk, so an undersized preset shows up as failed queries, not slow ones.
+## @field {Resources} [resources] - Explicit resources, overriding the preset.
+## @param {Workers} workers - Query execution workers.
+workers:
+  replicas: 2
+  resourcesPreset: "m1.large"
+  resources: {}
+
+##
+## @section Federation
+##
+
+## @typedef {struct} AdditionalCatalog - An extra data source Trino can query alongside the lakehouse, so a single query can join new Iceberg tables against a system that has not been migrated yet. During a migration off an existing warehouse this is the migration strategy, not a convenience.
+## @field {string} name - Catalog name as it appears in SQL (`SELECT ... FROM <name>.schema.table`).
+## @field {string} connector - Trino connector to use, for example `postgresql`, `mysql`, `kafka`.
+## @field {map[string]string} properties - Connector properties, passed through verbatim.
+## @param {[]AdditionalCatalog} [additionalCatalogs] - Extra catalogs for federated queries.
+additionalCatalogs: []
