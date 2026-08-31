@@ -65,3 +65,68 @@ In Langflow UI at `http://localhost:7860`:
 2. **Share → API Access** → copy the curl example
 3. Hand the endpoint to backend devs — they call it without knowing the flow internals
 4. When the team iterates on the flow, downstream code keeps working (same endpoint, evolved logic inside)
+
+## 4. Lakehouse from zero
+
+Goal: a warehouse whose tables outlive the engines that read them, with SQL over it, batch jobs that maintain it, and a scheduler driving both.
+
+Order matters here only in one place: the `Lakehouse` must exist before anything that names it, because the compute apps refuse to install without a warehouse to point at.
+
+```bash
+# Step 1: storage and catalog. This one object provisions the bucket, the
+# Nessie catalog and the Postgres behind it.
+echo '{"apiVersion":"apps.cozystack.io/v1alpha1","kind":"Lakehouse","metadata":{"name":"analytics"},"spec":{"catalog":"Nessie","database":{"size":"10Gi","replicas":2}}}' | kubectl -n <ns> apply -f -
+
+# Step 2: wait for the catalog to come up
+kubectl -n <ns> wait --for=condition=Ready lakehouse/analytics --timeout=10m
+
+# Step 3: SQL over it
+echo '{"apiVersion":"apps.cozystack.io/v1alpha1","kind":"Trino","metadata":{"name":"sql"},"spec":{"lakehouseRef":"analytics","workers":{"replicas":3}}}' | kubectl -n <ns> apply -f -
+
+# Step 4: create a table and put a row in it
+kubectl -n <ns> port-forward svc/trino-sql 8080:8080 &
+trino --server http://localhost:8080 --catalog lakehouse --execute "
+  CREATE SCHEMA IF NOT EXISTS lakehouse.sales;
+  CREATE TABLE lakehouse.sales.orders (id BIGINT, total DECIMAL(10,2), placed_at TIMESTAMP(6));
+  INSERT INTO lakehouse.sales.orders VALUES (1, 42.00, now());
+  SELECT * FROM lakehouse.sales.orders;"
+```
+
+At this point the data is in your bucket as Parquet and the catalog knows it as a table. Everything from here is optional and additive.
+
+### Adding compute and scheduling
+
+`SparkCluster`, `Airflow` and `Coder` run on the tenant's own Kubernetes cluster rather than the management one, because each of them runs code you supply. Enable the module once:
+
+```bash
+kubectl -n <root-ns> patch tenant <name> --type merge -p '{"spec":{"computeplane":true}}'
+kubectl -n <root-ns> wait --for=condition=Ready computeplane/<name> --timeout=30m
+```
+
+```bash
+# Batch compute, which is also what maintains the warehouse
+echo '{"apiVersion":"apps.cozystack.io/v1alpha1","kind":"SparkCluster","metadata":{"name":"batch"},"spec":{"lakehouseRef":"analytics"}}' | kubectl -n <ns> apply -f -
+
+# The scheduler that drives it
+echo '{"apiVersion":"apps.cozystack.io/v1alpha1","kind":"Airflow","metadata":{"name":"pipelines"},"spec":{"dags":{"repo":"https://github.com/acme/dags.git","branch":"main"},"host":"airflow.example.com"}}' | kubectl -n <ns> apply -f -
+```
+
+Ordering an app without the module is not a silent failure: the apply is rejected with a message naming what to enable.
+
+### Keeping it fast
+
+Iceberg tables degrade in a specific, predictable way — a stream of small writes leaves thousands of tiny Parquet files, and every scan pays for it. Fixing that means physically rewriting the files, which only an engine can do, so it belongs in a scheduled Spark job rather than anywhere near the catalog:
+
+```sql
+CALL lakehouse.system.rewrite_data_files(table => 'sales.orders');
+CALL lakehouse.system.expire_snapshots(table => 'sales.orders', older_than => TIMESTAMP '2026-01-01 00:00:00');
+```
+
+### Tracking models trained on it
+
+```bash
+echo '{"apiVersion":"apps.cozystack.io/v1alpha1","kind":"MLflow","metadata":{"name":"tracking"},"spec":{"lakehouseRef":"analytics"}}' | kubectl -n <ns> apply -f -
+```
+
+MLflow keeps run metadata in its own Postgres and writes artifacts into the same bucket under an `mlflow/` prefix. It is not an alternative to Airflow — Airflow decides when the training job runs, MLflow records what it produced.
+
