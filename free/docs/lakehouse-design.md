@@ -156,6 +156,20 @@ The knob that matters operationally is idle timeout: a hundred analysts' workspa
 
 The three fixed ones differ from the existing `computePlane: false` toggle on `JupyterHub`, `Langflow` and `ComfyUI`. That toggle exists because those apps predate the ComputePlane module and their co-located mode is what shipped. For new objects there is no such legacy, so the safe placement should be the only placement.
 
+### There is no platform-side routing, and there will not be
+
+An earlier revision of this document assumed a `placement` field on `ApplicationDefinition` would eventually route an app onto the ComputePlane automatically. That field has been dropped from the platform: there is exactly one ComputePlane per tenant, and nothing chooses between planes.
+
+Two things follow, and both are structural rather than cosmetic.
+
+**Every ComputePlane chart carries the remote-apply wiring itself.** The management-side release renders an inner Flux `HelmRelease` with `spec.kubeConfig.secretRef` pointing at the tenant's `computeplane-cluster-admin-kubeconfig`, sets `targetNamespace`/`storageNamespace`, and injects any secrets through `valuesFrom` — the shape `JupyterHub` gained in #2. This is not a values toggle; it changes how the chart is built.
+
+Since that wiring is permanent rather than a bridge to a future platform feature, it belongs in a **shared helper template** in this repository from the start. Three charts copying it will drift.
+
+**A missing module must fail loudly.** With no toggle and no fallback, ordering `SparkCluster`, `Airflow` or `Coder` in a tenant that has not enabled the `computeplane` module leaves the chart with no cluster to apply to. Rendering into the tenant namespace instead would silently place untrusted code exactly where this design exists to keep it out of. The charts must refuse to render, with a message naming the module to enable.
+
+Because there is only ever one ComputePlane, no object needs a `computePlaneRef`: the Secret name is a fixed contract.
+
 One consequence to plan for rather than discover: with Spark on the ComputePlane and the catalog on management, every Spark commit crosses a cluster boundary on a hot path. If that shows up as a problem, the answer is to place the whole data stack on the ComputePlane — not to duplicate the catalog.
 
 ## What this leaves open
