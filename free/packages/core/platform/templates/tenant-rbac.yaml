@@ -1,0 +1,28 @@
+{{- /*
+Tenant users get the catalog applications the same way Cozystack grants its
+built-in ones: through ClusterRoles aggregated into cozy:tenant:* by label.
+Without them the applications show up in the catalog but nobody in a tenant
+can create them.
+*/}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cozyllm:tenant:admin
+  labels:
+    rbac.cozystack.io/aggregate-to-tenant-admin: "true"
+    rbac.cozystack.io/aggregate-to-tenant-super-admin: "true"
+rules:
+  - apiGroups: [apps.cozystack.io]
+    resources: [vllminferences, litellms, langflows, jupyterhubs, comfyuis]
+    verbs: [create, update, patch, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cozyllm:tenant:view
+  labels:
+    rbac.cozystack.io/aggregate-to-tenant-view: "true"
+rules:
+  - apiGroups: [apps.cozystack.io]
+    resources: [vllminferences, litellms, langflows, jupyterhubs, comfyuis]
+    verbs: [get, list, watch]
