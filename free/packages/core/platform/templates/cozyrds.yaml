@@ -280,6 +280,16 @@ spec:
             "default": 1,
             "minimum": 1,
             "maximum": 5
+          },
+          "resources": {
+            "type": "object",
+            "title": "Resources",
+            "description": "CPU and memory for the LiteLLM proxy pod (used as both request and limit).",
+            "default": {"cpu": "500m", "memory": "1536Mi"},
+            "properties": {
+              "cpu":    {"type": "string", "default": "500m"},
+              "memory": {"type": "string", "default": "1536Mi"}
+            }
           }
         }
       }
