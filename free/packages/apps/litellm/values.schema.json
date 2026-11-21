@@ -1,7 +1,9 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["masterKey"],
+  "required": [
+    "masterKey"
+  ],
   "properties": {
     "masterKey": {
       "type": "string",
@@ -17,7 +19,10 @@
       "default": [],
       "items": {
         "type": "object",
-        "required": ["name", "url"],
+        "required": [
+          "name",
+          "url"
+        ],
         "properties": {
           "name": {
             "type": "string",
@@ -84,17 +89,20 @@
     "resources": {
       "type": "object",
       "title": "Resources",
+      "description": "CPU and memory for the LiteLLM proxy pod (used as both request and limit).",
       "properties": {
         "cpu": {
           "type": "string",
-          "title": "CPU",
           "default": "500m"
         },
         "memory": {
           "type": "string",
-          "title": "Memory",
-          "default": "512Mi"
+          "default": "1536Mi"
         }
+      },
+      "default": {
+        "cpu": "500m",
+        "memory": "1536Mi"
       }
     },
     "replicaCount": {
