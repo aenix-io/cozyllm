@@ -89,6 +89,7 @@ spec:
               cpu: {{ .Values.resources.cpu | quote }}
               memory: {{ .Values.resources.memory | quote }}
             limits:
+              cpu: {{ .Values.resources.cpu | quote }}
               memory: {{ .Values.resources.memory | quote }}
           volumeMounts:
             - name: config
